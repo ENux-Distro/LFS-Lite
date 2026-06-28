@@ -1,0 +1,294 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 12. Custom Installer Script — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter11.html" title="Chapter 11. Switching Root">Prev</a>
+          <p>Chapter 11. Switching Root</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="bootprocess.html" title="Final Boot Process Explanation">Next</a>
+          <p>Final Boot Process Explanation</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;12. Custom Installer Script</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          The installer script automates the process of preparing a target
+          disk and writing the LFS-Lite system to it. It partitions the disk,
+          formats the partitions, copies the root filesystem, installs GRUB,
+          and writes a correct <code class="filename">grub.cfg</code> using
+          the target partitions' UUIDs for reliable boot identification.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate time:</strong>
+            <span class="segbody">5–20 minutes (depends on disk speed)</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Risk level:</strong>
+            <span class="segbody"><strong>HIGH</strong> — destructive disk operation</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="installer-intro" name="installer-intro"></a>12.1. Introduction</h2>
+        <p>
+          The installer creates the following partition layout on the target
+          disk:
+        </p>
+        <table class="compat">
+          <tr><th>Partition</th><th>Size</th><th>Type</th><th>Mount Point</th><th>Contents</th></tr>
+          <tr><td>sda1</td><td>512 MB</td><td>ext4</td><td>/boot</td><td>vmlinuz, initramfs, grub/</td></tr>
+          <tr><td>sda2</td><td>Remainder</td><td>ext4</td><td>/</td><td>Root filesystem</td></tr>
+        </table>
+        <p>
+          This script does not handle encrypted volumes, LVM, software RAID,
+          UEFI, or network installations. Those capabilities are left as
+          extensions for the reader.
+        </p>
+
+        <h2 class="sect2"><a id="installer-warning" name="installer-warning"></a>12.2. Safety Warning</h2>
+        <div class="admon warn">
+          <h3>Warning</h3>
+          <p>
+            The installer partitions a disk, which is a
+            <strong>destructive and irreversible operation</strong>. All
+            data on the target disk will be permanently lost. Verify the
+            target device path (e.g. <code>/dev/sdb</code>) with
+            <code class="command">lsblk</code> before running the script.
+            Do not run this against a disk containing data you wish to keep.
+            Do not run this against the disk your host system is installed on.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="installer-script" name="installer-script"></a>12.3. Writing the Installer Script</h2>
+        <pre class="userinput"><kbd class="command">cat &gt; /mnt/lfs-lite/install.sh &lt;&lt; 'INSTALLER_EOF'
+#!/bin/bash
+#
+# LFS-Lite Installer
+# Usage: sudo ./install.sh /dev/sdX
+#
+set -e
+
+LFS_ROOT="${LFS_ROOT:-/mnt/lfs-lite/rootfs}"
+
+# --- Validation ---
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "ERROR: Must be run as root."; exit 1
+fi
+
+if [ -z "$1" ]; then
+    echo "Usage: $0 /dev/sdX"
+    echo ""; echo "Available disks:"
+    lsblk -d -o NAME,SIZE,MODEL
+    exit 1
+fi
+
+TARGET="$1"
+
+if [ ! -b "$TARGET" ]; then
+    echo "ERROR: $TARGET is not a block device."; exit 1
+fi
+
+if [ ! -d "$LFS_ROOT" ]; then
+    echo "ERROR: LFS_ROOT ($LFS_ROOT) does not exist."; exit 1
+fi
+
+echo ""
+echo "====================================="
+echo "  LFS-Lite Installer"
+echo "====================================="
+echo ""
+echo "Target disk : $TARGET"
+echo "Source root : $LFS_ROOT"
+echo ""
+echo "WARNING: ALL DATA ON $TARGET WILL BE DESTROYED."
+echo ""
+read -rp "Type 'yes' to continue: " CONFIRM
+[ "$CONFIRM" = "yes" ] || { echo "Aborted."; exit 0; }
+
+# --- Determine partition names ---
+if echo "$TARGET" | grep -qE 'nvme|mmcblk'; then
+    BOOT_PART="${TARGET}p1"
+    ROOT_PART="${TARGET}p2"
+else
+    BOOT_PART="${TARGET}1"
+    ROOT_PART="${TARGET}2"
+fi
+
+# --- Partitioning ---
+echo "[1/7] Partitioning $TARGET..."
+wipefs -a "$TARGET"
+sfdisk "$TARGET" &lt;&lt; PART_EOF
+label: dos
+device: $TARGET
+${BOOT_PART} : size=512MiB, type=83, bootable
+${ROOT_PART} : type=83
+PART_EOF
+partprobe "$TARGET"
+sleep 2
+
+# --- Formatting ---
+echo "[2/7] Formatting partitions..."
+mkfs.ext4 -L boot "$BOOT_PART"
+mkfs.ext4 -L root "$ROOT_PART"
+
+# --- Mounting ---
+echo "[3/7] Mounting target filesystems..."
+MROOT=/mnt/lfs-install
+MBOOT=/mnt/lfs-install/boot
+mkdir -pv "$MROOT"
+mount "$ROOT_PART" "$MROOT"
+mkdir -pv "$MBOOT"
+mount "$BOOT_PART" "$MBOOT"
+
+# --- Copying ---
+echo "[4/7] Copying root filesystem..."
+rsync -aAX \
+    --exclude=/proc --exclude=/sys \
+    --exclude=/dev  --exclude=/tmp \
+    "$LFS_ROOT/" "$MROOT/"
+
+mkdir -pv "$MROOT"/{proc,sys,dev,tmp}
+chmod 1777 "$MROOT/tmp"
+
+# --- Writing /etc/fstab ---
+echo "[5/7] Writing /etc/fstab..."
+BOOT_UUID=$(blkid -s UUID -o value "$BOOT_PART")
+ROOT_UUID=$(blkid -s UUID -o value "$ROOT_PART")
+
+cat &gt; "$MROOT/etc/fstab" &lt;&lt; FSTAB_EOF
+# /etc/fstab — generated by LFS-Lite installer
+UUID=${ROOT_UUID}  /       ext4  defaults  0  1
+UUID=${BOOT_UUID}  /boot   ext4  defaults  0  2
+proc     /proc     proc    nosuid,noexec,nodev  0  0
+sysfs    /sys      sysfs   nosuid,noexec,nodev  0  0
+devtmpfs /dev      devtmpfs mode=0755,nosuid    0  0
+devpts   /dev/pts  devpts  gid=5,mode=620       0  0
+tmpfs    /tmp      tmpfs   mode=1777            0  0
+FSTAB_EOF
+
+# --- Installing GRUB ---
+echo "[6/7] Installing GRUB to $TARGET..."
+grub-install \
+    --target=i386-pc \
+    --boot-directory="$MBOOT" \
+    --recheck \
+    "$TARGET"
+
+# --- Writing grub.cfg ---
+echo "[7/7] Writing GRUB configuration..."
+cat &gt; "$MBOOT/grub/grub.cfg" &lt;&lt; GRUB_EOF
+# LFS-Lite GRUB configuration — generated by installer
+set default=0
+set timeout=5
+
+insmod part_msdos
+insmod ext2
+insmod all_video
+
+menuentry "LFS-Lite Linux 7.1.2" {
+    search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
+    linux  /vmlinuz-7.1.2 root=UUID=${ROOT_UUID} rw quiet
+    initrd /initramfs.cpio.gz
+}
+
+menuentry "LFS-Lite Linux 7.1.2 (verbose)" {
+    search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
+    linux  /vmlinuz-7.1.2 root=UUID=${ROOT_UUID} rw
+    initrd /initramfs.cpio.gz
+}
+GRUB_EOF
+
+# --- Cleanup ---
+echo "Syncing and unmounting..."
+sync
+umount "$MBOOT"
+umount "$MROOT"
+
+echo ""
+echo "====================================="
+echo "  Installation Complete"
+echo "====================================="
+echo ""
+echo "Boot  partition : $BOOT_PART  (UUID: $BOOT_UUID)"
+echo "Root  partition : $ROOT_PART  (UUID: $ROOT_UUID)"
+echo ""
+echo "Remove installation media and reboot from $TARGET."
+INSTALLER_EOF
+
+chmod +x /mnt/lfs-lite/install.sh</kbd></pre>
+
+        <h2 class="sect2"><a id="installer-run" name="installer-run"></a>12.4. Running the Installer</h2>
+        <p>
+          Identify the target disk with <code class="command">lsblk</code>:
+        </p>
+        <pre class="userinput"><kbd class="command">lsblk -d -o NAME,SIZE,MODEL,TYPE | grep disk</kbd></pre>
+        <p>
+          Run the installer, substituting the correct device path:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo LFS_ROOT=$LFS_ROOT /mnt/lfs-lite/install.sh /dev/sdX</kbd></pre>
+        <div class="admon warn">
+          <h3>Warning</h3>
+          <p>
+            Replace <code>/dev/sdX</code> with the actual device path of the
+            target disk. Double-check with <code class="command">lsblk</code>
+            before confirming. The installer will ask you to type
+            <code>yes</code> before any destructive action is taken.
+          </p>
+        </div>
+        <p>
+          When the installer completes, remove any installation media and
+          reboot. The system should boot through GRUB into the LFS-Lite
+          initramfs, then pivot into the final root filesystem and present
+          a bash prompt.
+        </p>
+        <p>
+          Proceed to the <a href="bootprocess.html">Final Boot Process
+          Explanation</a> for a detailed walkthrough of what happens from
+          power-on to login shell.
+        </p>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter11.html" title="Chapter 11. Switching Root">Prev</a>
+          <p>Chapter 11. Switching Root</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="bootprocess.html" title="Final Boot Process Explanation">Next</a>
+          <p>Final Boot Process Explanation</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

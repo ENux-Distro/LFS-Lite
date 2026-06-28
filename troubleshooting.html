@@ -1,0 +1,266 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Troubleshooting — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part II. Reference</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="bootprocess.html" title="Final Boot Process Explanation">Prev</a>
+          <p>Final Boot Process Explanation</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="appendix.html" title="Appendix">Next</a>
+          <p>Appendix</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Troubleshooting</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          This chapter documents the most common failures encountered when
+          building and booting LFS-Lite, their root causes, and how to
+          resolve them. Failures are organised by the stage at which they
+          manifest.
+        </p>
+      </div>
+
+      <div class="installation">
+
+        <!-- ── Build-time failures ── -->
+        <h2 class="sect2">Build-Time Failures</h2>
+
+        <h3>Undefined reference to ... during compilation</h3>
+        <p>
+          <strong>Symptom:</strong> Linker errors such as
+          <code>undefined reference to `__errno_location'</code> or
+          <code>undefined reference to `malloc'</code> appear during
+          <code class="command">make</code>.
+        </p>
+        <p><strong>Causes and resolutions:</strong></p>
+        <ul>
+          <li>The <code class="filename">musl-gcc</code> wrapper is not
+          being used. Verify <code>CC="$LFS_TOOLS/musl-gcc"</code> is
+          present in the configure invocation and that the wrapper file
+          exists and is executable:
+          <pre class="userinput"><kbd class="command">ls -la $LFS_TOOLS/musl-gcc
+$LFS_TOOLS/musl-gcc --version</kbd></pre></li>
+          <li>musl headers are not at the expected path. Verify:
+          <pre class="userinput"><kbd class="command">ls $LFS_ROOT/usr/include/stdio.h</kbd></pre></li>
+          <li>The static library is missing. Verify:
+          <pre class="userinput"><kbd class="command">ls $LFS_ROOT/usr/lib/libc.a</kbd></pre></li>
+        </ul>
+
+        <h3>configure: error: C compiler cannot create executables</h3>
+        <p>
+          <strong>Symptom:</strong> The <code class="command">./configure</code>
+          step fails immediately with a compiler test failure.
+        </p>
+        <p><strong>Causes and resolutions:</strong></p>
+        <ul>
+          <li>The <code class="filename">musl-gcc</code> wrapper has a
+          syntax error or incorrect path. Test it directly:
+          <pre class="userinput"><kbd class="command">$LFS_TOOLS/musl-gcc /tmp/musl-test.c -o /tmp/test-out 2&gt;&amp;1</kbd></pre></li>
+          <li>The <code>$LFS_ROOT</code> variable is not exported. Verify:
+          <pre class="userinput"><kbd class="command">echo $LFS_ROOT</kbd></pre>
+          It must print <code>/mnt/lfs-lite/rootfs</code>. If empty,
+          re-source <code class="filename">~/.bashrc</code>.</li>
+        </ul>
+
+        <h3>Parallel build fails but -j1 succeeds</h3>
+        <p>
+          <strong>Symptom:</strong> <code class="command">make -j$(nproc)</code>
+          fails with an error, but <code class="command">make -j1</code>
+          completes successfully.
+        </p>
+        <p>
+          This is a Makefile parallelism bug in the package — not an
+          environment problem. Use <code class="parameter">-j1</code> for
+          the affected package and report the issue upstream. Known packages
+          with occasional parallel build issues: bash, GRUB.
+        </p>
+
+        <!-- ── Boot failures ── -->
+        <h2 class="sect2">Boot-Time Failures</h2>
+
+        <h3>Kernel panic: VFS: Unable to mount root fs</h3>
+        <p>
+          <strong>Symptom:</strong> The kernel boots, the initramfs may or
+          may not start, but the system panics with:
+        </p>
+        <pre class="userinput"><kbd class="command">Kernel panic - not syncing: VFS: Unable to mount root fs on unknown-block(0,0)</kbd></pre>
+        <p><strong>Causes and resolutions:</strong></p>
+        <ul>
+          <li><strong>Wrong <code>root=</code> parameter:</strong> The UUID
+          or device path in <code class="filename">grub.cfg</code> does not
+          match the actual partition. Boot from a live system and run:
+          <pre class="userinput"><kbd class="command">blkid /dev/sda2</kbd></pre>
+          Compare the UUID with the one in <code class="filename">grub.cfg</code>.</li>
+          <li><strong>ext4 not in kernel:</strong> Verify
+          <code>CONFIG_EXT4_FS=y</code> was set before kernel compilation.
+          Recompile if necessary.</li>
+          <li><strong>Disk driver missing:</strong> For QEMU,
+          <code>CONFIG_VIRTIO_BLK=y</code> is required. For bare metal SATA,
+          <code>CONFIG_ATA=y</code> and <code>CONFIG_ATA_PIIX=y</code>.
+          Recompile the kernel with the correct options.</li>
+          <li><strong>initramfs timeout too short:</strong> The disk driver
+          may initialise asynchronously. Increase the polling loop count in
+          the initramfs <code class="filename">/sbin/init</code> from
+          20 iterations to 40.</li>
+        </ul>
+
+        <h3>switch_root: failed to execute /sbin/init</h3>
+        <p>
+          <strong>Symptom:</strong> The initramfs runs successfully and mounts
+          the root partition, but <code class="command">switch_root</code>
+          fails to execute <code class="filename">/sbin/init</code>.
+        </p>
+        <p><strong>Causes and resolutions:</strong></p>
+        <ul>
+          <li><code class="filename">/sbin/init</code> does not exist on
+          the real root. Verify:
+          <pre class="userinput"><kbd class="command">ls -la $LFS_ROOT/sbin/init</kbd></pre></li>
+          <li><code class="filename">/sbin/init</code> is not executable:
+          <pre class="userinput"><kbd class="command">chmod +x $LFS_ROOT/sbin/init</kbd></pre></li>
+          <li>The shebang <code>#!/bin/bash</code> references
+          <code class="filename">/bin/bash</code>, but bash is at
+          <code class="filename">/usr/bin/bash</code> and
+          <code class="filename">/bin</code> is not yet a symlink.
+          Verify the symlink from
+          <a href="chapter01.html#env-symlinks">Section&nbsp;1.5</a>:
+          <pre class="userinput"><kbd class="command">ls -la $LFS_ROOT/bin</kbd></pre>
+          It must be a symlink pointing to <code>usr/bin</code>.</li>
+        </ul>
+
+        <h3>Blank or garbled screen after GRUB</h3>
+        <p>
+          <strong>Symptom:</strong> GRUB loads and the kernel entry is
+          selected, but the screen goes blank with no further output.
+        </p>
+        <p><strong>Causes and resolutions:</strong></p>
+        <ul>
+          <li>Add <code>console=ttyS0</code> to the kernel command line
+          in <code class="filename">grub.cfg</code> and connect a serial
+          terminal. This bypasses video mode issues entirely.</li>
+          <li>Add <code>nomodeset</code> to the kernel command line to
+          disable Kernel Mode Setting and use the BIOS text mode
+          framebuffer.</li>
+          <li>In QEMU, use <code>-nographic</code> and
+          <code>console=ttyS0</code> together for serial-only output.</li>
+        </ul>
+
+        <h3>GRUB: file not found</h3>
+        <p>
+          <strong>Symptom:</strong> GRUB reports that
+          <code class="filename">vmlinuz-7.1.2</code> or
+          <code class="filename">initramfs.cpio.gz</code> cannot be found.
+        </p>
+        <p><strong>Causes and resolutions:</strong></p>
+        <ul>
+          <li><strong>Path prefix error:</strong> When
+          <code class="filename">/boot</code> is a separate partition,
+          GRUB's root is that partition. Files must be referenced as
+          <code>/vmlinuz-7.1.2</code>, not
+          <code>/boot/vmlinuz-7.1.2</code>. The installer-generated
+          <code class="filename">grub.cfg</code> handles this correctly
+          via the <code>search --fs-uuid</code> directive.</li>
+          <li><strong>UUID mismatch:</strong> Run
+          <code class="command">blkid</code> from a live system to
+          confirm the boot partition UUID matches the one in
+          <code class="filename">grub.cfg</code>.</li>
+        </ul>
+
+        <!-- ── Runtime failures ── -->
+        <h2 class="sect2">Runtime Failures</h2>
+
+        <h3>error while loading shared libraries: libc.so</h3>
+        <p>
+          <strong>Symptom:</strong> After booting into the final system,
+          running a command produces:
+          <code>error while loading shared libraries: libc.so: cannot open shared object file</code>.
+        </p>
+        <p><strong>Causes and resolutions:</strong></p>
+        <ul>
+          <li>The musl shared library is absent or at the wrong path.
+          Verify from the chroot:
+          <pre class="userinput"><kbd class="command">ls -la /usr/lib/libc.so
+ls -la /lib64/ld-musl-x86_64.so.1</kbd></pre></li>
+          <li>util-linux was built as dynamically linked but the dynamic
+          linker path embedded in the binary does not match the installed
+          location. Check with:
+          <pre class="userinput"><kbd class="command">readelf -l /usr/sbin/fdisk | grep interpreter</kbd></pre>
+          The interpreter path must match the actual location of
+          <code class="filename">ld-musl-x86_64.so.1</code>.</li>
+        </ul>
+
+        <h3>BusyBox switch_root not found in initramfs</h3>
+        <p>
+          <strong>Symptom:</strong> The initramfs <code class="filename">/init</code>
+          script fails because <code class="command">switch_root</code>
+          is not found.
+        </p>
+        <p>
+          Verify <code>CONFIG_SWITCH_ROOT=y</code> in the BusyBox config
+          and that the symlink was created:
+        </p>
+        <pre class="userinput"><kbd class="command">grep 'CONFIG_SWITCH_ROOT' $LFS_SOURCES/busybox/.config
+ls -la $LFS/initramfs/bin/switch_root</kbd></pre>
+        <p>
+          If <code>switch_root</code> is not in the config, enable it,
+          rebuild BusyBox (<a href="chapter06.html">Chapter&nbsp;6</a>),
+          and repackage the initramfs (<a href="chapter09.html">Chapter&nbsp;9</a>).
+        </p>
+
+        <h3>musl-test binary segfaults</h3>
+        <p>
+          <strong>Symptom:</strong> The musl verification binary in
+          <a href="chapter02.html#musl-verify">Section&nbsp;2.7</a>
+          segfaults immediately.
+        </p>
+        <p><strong>Causes and resolutions:</strong></p>
+        <ul>
+          <li>The dynamic linker is not at the path embedded in the binary.
+          The wrapper passes an absolute build-time path. Ensure
+          <code class="filename">$LFS_ROOT/lib64/ld-musl-x86_64.so.1</code>
+          exists and is not a broken symlink.</li>
+          <li>Architecture mismatch: verify the host is x86_64 with
+          <code class="command">uname -m</code>. On a 32-bit host a
+          different musl dynamic linker name is required.</li>
+        </ul>
+
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="bootprocess.html" title="Final Boot Process Explanation">Prev</a>
+          <p>Final Boot Process Explanation</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="appendix.html" title="Appendix">Next</a>
+          <p>Appendix</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

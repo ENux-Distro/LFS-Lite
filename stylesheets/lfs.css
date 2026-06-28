@@ -1,0 +1,365 @@
+/* LFS-Lite Book Stylesheet — modelled on the official LFS book CSS */
+
+/* ── Reset & base ──────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "DejaVu Serif", Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #1a1a1a;
+  background: #f8f6f0;
+}
+
+body.lfs {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* ── Links ─────────────────────────────────────────────────────────── */
+a            { color: #1a4a8a; text-decoration: none; }
+a:hover      { text-decoration: underline; color: #0d2e5c; }
+a:visited    { color: #5a3a8a; }
+
+/* ── Navigation header / footer ────────────────────────────────────── */
+.navheader,
+.navfooter {
+  background: #2c4a7c;
+  color: #e8e4d8;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  margin: 0.8rem 0;
+}
+
+.navheader h4 {
+  font-size: 0.85rem;
+  font-weight: normal;
+  letter-spacing: 0.04em;
+  color: #c8d8f0;
+  margin-bottom: 0.2rem;
+}
+
+.navheader h3 {
+  font-size: 1rem;
+  color: #e8e4d8;
+  margin-bottom: 0.5rem;
+}
+
+.navheader ul,
+.navfooter ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1.5rem;
+  align-items: flex-start;
+  padding: 0;
+}
+
+.navheader ul li,
+.navfooter ul li {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.82rem;
+}
+
+.navheader ul li a,
+.navfooter ul li a {
+  color: #a8c8f8;
+  font-weight: bold;
+}
+
+.navheader ul li p,
+.navfooter ul li p {
+  color: #b0c0d8;
+  font-size: 0.75rem;
+  margin-top: 0.1rem;
+}
+
+/* ── Page title ─────────────────────────────────────────────────────── */
+h1.sect1 {
+  font-size: 1.7rem;
+  color: #1a2a4a;
+  border-bottom: 2px solid #2c4a7c;
+  padding-bottom: 0.4rem;
+  margin: 1.2rem 0 1rem;
+}
+
+/* ── Section headings ───────────────────────────────────────────────── */
+h2.sect2 {
+  font-size: 1.25rem;
+  color: #2c4a7c;
+  margin: 1.4rem 0 0.6rem;
+}
+
+h2.indexpage {
+  font-size: 1.5rem;
+  color: #1a2a4a;
+  border-bottom: 2px solid #2c4a7c;
+  padding-bottom: 0.3rem;
+  margin: 1.4rem 0 0.7rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  color: #1a2a4a;
+  margin: 1rem 0 0.4rem;
+}
+
+/* ── Main content wrap ──────────────────────────────────────────────── */
+div.wrap {
+  margin: 0;
+}
+
+div.package,
+div.installation,
+div.content {
+  margin-bottom: 1.2rem;
+}
+
+/* ── Paragraphs ─────────────────────────────────────────────────────── */
+p {
+  margin: 0.6rem 0;
+}
+
+/* ── Code / commands ────────────────────────────────────────────────── */
+pre.userinput {
+  background: #1a1a2e;
+  color: #e0e8f8;
+  border: 1px solid #3a3a5c;
+  border-left: 4px solid #4a8adc;
+  padding: 0.9rem 1.1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0.8rem 0;
+  font-family: "DejaVu Sans Mono", "Courier New", monospace;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+pre.userinput kbd.command {
+  font-family: inherit;
+  font-size: inherit;
+  color: #e0e8f8;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+code {
+  font-family: "DejaVu Sans Mono", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #e8e4d8;
+  color: #1a1a2e;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+code.filename   { color: #2a5a2a; }
+code.command    { color: #1a3a6a; }
+code.parameter  { color: #5a2a5a; }
+
+/* ── Admonition boxes ───────────────────────────────────────────────── */
+div.admon {
+  border-left: 4px solid #4a8adc;
+  background: #eef4fc;
+  padding: 0.7rem 1rem;
+  border-radius: 0 4px 4px 0;
+  margin: 0.9rem 0;
+}
+
+div.admon.note   { border-color: #4a8adc; background: #eef4fc; }
+div.admon.tip    { border-color: #3a8a3a; background: #eefcee; }
+div.admon.warn   { border-color: #c8720a; background: #fef8ee; }
+div.admon.important { border-color: #aa2222; background: #fff0f0; }
+
+div.admon h3 {
+  font-size: 0.95rem;
+  font-weight: bold;
+  margin: 0 0 0.4rem;
+  color: #1a2a4a;
+}
+
+div.admon.note h3    { color: #1a3a6a; }
+div.admon.warn h3    { color: #7a3a00; }
+div.admon.important h3 { color: #7a0000; }
+
+div.admon p { margin: 0.3rem 0; font-size: 0.93rem; }
+
+/* ── Variable / flag lists ──────────────────────────────────────────── */
+div.variablelist {
+  margin: 0.8rem 0 0.8rem 0.5rem;
+}
+
+div.variablelist p.title {
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  color: #2c4a7c;
+}
+
+dl.variablelist { margin-left: 1rem; }
+
+dl.variablelist dt {
+  font-weight: bold;
+  margin-top: 0.6rem;
+  color: #1a1a2e;
+}
+
+dl.variablelist dt em.parameter code {
+  color: #5a2a5a;
+  background: #f0eaf8;
+}
+
+dl.variablelist dd {
+  margin-left: 1.5rem;
+  margin-bottom: 0.3rem;
+}
+
+dl.variablelist dd p { font-size: 0.92rem; }
+
+/* ── Segmented list (build time / disk space) ───────────────────────── */
+div.segmentedlist {
+  background: #eeeae0;
+  border: 1px solid #ccc8b8;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  margin: 0.7rem 0;
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+div.seg { font-size: 0.9rem; }
+strong.segtitle { color: #2c4a7c; }
+span.segbody    { color: #1a1a1a; }
+
+/* ── Table of contents (index page) ────────────────────────────────── */
+div.toc {
+  background: #eeeae0;
+  border: 1px solid #ccc8b8;
+  border-radius: 4px;
+  padding: 1rem 1.5rem;
+  margin: 1rem 0;
+}
+
+div.toc h3 {
+  color: #2c4a7c;
+  font-size: 1.1rem;
+  margin-bottom: 0.6rem;
+}
+
+div.toc ul {
+  list-style: none;
+  padding: 0;
+}
+
+div.toc > ul > li {
+  margin: 0.4rem 0;
+  font-weight: bold;
+}
+
+div.toc > ul > li > a {
+  color: #1a4a8a;
+  font-size: 1rem;
+}
+
+div.toc ul ul {
+  margin-left: 1.5rem;
+  margin-top: 0.2rem;
+}
+
+div.toc ul ul li {
+  font-weight: normal;
+  font-size: 0.9rem;
+  margin: 0.2rem 0;
+}
+
+/* ── Ordered / unordered lists ──────────────────────────────────────── */
+ul, ol {
+  margin: 0.5rem 0 0.5rem 1.8rem;
+}
+
+li { margin: 0.2rem 0; }
+
+/* ── Tables ──────────────────────────────────────────────────────────── */
+table.compat {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.8rem 0;
+  font-size: 0.9rem;
+}
+
+table.compat th {
+  background: #2c4a7c;
+  color: #e8e4d8;
+  padding: 0.4rem 0.7rem;
+  text-align: left;
+}
+
+table.compat td {
+  border: 1px solid #ccc8b8;
+  padding: 0.35rem 0.7rem;
+}
+
+table.compat tr:nth-child(even) td { background: #f0ece0; }
+
+/* ── Book cover / title page ────────────────────────────────────────── */
+div.book-cover {
+  text-align: center;
+  padding: 3rem 1rem;
+  border: 2px solid #2c4a7c;
+  border-radius: 8px;
+  background: linear-gradient(160deg, #eef2fc 0%, #f8f6f0 100%);
+  margin: 1.5rem 0;
+}
+
+div.book-cover h1 {
+  font-size: 2.8rem;
+  color: #1a2a4a;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+div.book-cover .subtitle {
+  font-size: 1.15rem;
+  color: #4a6a9a;
+  margin-bottom: 1.5rem;
+  font-style: italic;
+}
+
+div.book-cover .version {
+  font-size: 0.95rem;
+  color: #6a6a6a;
+  margin-bottom: 0.2rem;
+}
+
+div.book-cover .author {
+  font-size: 1rem;
+  color: #2c4a7c;
+  font-weight: bold;
+}
+
+div.book-cover .quote {
+  margin: 1.5rem auto 0;
+  max-width: 500px;
+  font-style: italic;
+  color: #5a5a5a;
+  font-size: 0.95rem;
+  border-top: 1px solid #ccc8b8;
+  padding-top: 1rem;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  body.lfs { padding: 0 0.5rem; }
+  pre.userinput { font-size: 0.8rem; }
+  div.book-cover h1 { font-size: 2rem; }
+  div.segmentedlist { flex-direction: column; gap: 0.4rem; }
+}
+
+/* ── Print ───────────────────────────────────────────────────────────── */
+@media print {
+  .navheader, .navfooter { display: none; }
+  pre.userinput { border: 1px solid #888; background: #f0f0f0; color: #000; }
+  body { font-size: 11pt; }
+}

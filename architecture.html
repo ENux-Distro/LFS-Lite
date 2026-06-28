@@ -1,0 +1,221 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>System Architecture Overview — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Preface</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="toolchain.html" title="Toolchain Validation">Prev</a>
+          <p>Toolchain Validation</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter01.html" title="Chapter 1. Preparing the Environment">Next</a>
+          <p>Chapter 1. Preparing the Environment</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">System Architecture Overview</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+
+      <div class="package">
+        <h2 class="sect2">The Two-Stage Boot Model</h2>
+        <p>
+          LFS-Lite uses a two-stage boot architecture, which is standard in
+          modern Linux systems. Understanding this model before touching any
+          source code is essential — it explains why certain packages exist,
+          why the build order matters, and where each component lives in
+          the final system.
+        </p>
+        <pre class="userinput"><kbd class="command">BIOS/UEFI
+    │
+    ▼
+GRUB Bootloader
+    │
+    ▼
+Linux Kernel (vmlinuz)
+    │
+    ▼
+initramfs  (BusyBox environment, in RAM)
+    │  ┌─ mount /proc /sys /dev
+    │  ├─ locate real root device
+    │  └─ run switch_root
+    │
+    ▼
+Final Root Filesystem
+    │  ┌─ musl libc
+    │  ├─ bash
+    │  ├─ coreutils
+    │  ├─ util-linux
+    │  └─ custom PID 1 init
+    │
+    ▼
+Login shell / userspace</kbd></pre>
+        <p>
+          This architecture exists for sound engineering reasons. The kernel,
+          once loaded, needs a minimal environment to perform device detection,
+          mount the real root filesystem, and then hand control to the main
+          system. The initramfs provides this environment without requiring
+          the final root filesystem to contain all required early-boot tooling.
+        </p>
+      </div>
+
+      <div class="installation">
+        <h2 class="sect2">Directory Layout of the Target System</h2>
+        <p>
+          The final root filesystem follows a simplified version of the
+          Filesystem Hierarchy Standard (FHS). The layout is intentionally
+          lean: no <code class="filename">/opt</code>, no
+          <code class="filename">/srv</code>, no subsystem directories that
+          serve no purpose in a minimal system.
+        </p>
+        <pre class="userinput"><kbd class="command">/
+├── bin/       → usr/bin  (symlink, FHS merge)
+├── boot/      Kernel image, initramfs, GRUB config
+├── dev/       Device files (populated by kernel devtmpfs)
+├── etc/       fstab, hostname, passwd, profile
+├── home/      User home directories
+├── lib/       → usr/lib  (symlink)
+├── lib64/     Dynamic linker: ld-musl-x86_64.so.1
+├── proc/      Kernel process information (procfs)
+├── root/      Root user home directory
+├── sbin/      → usr/sbin (symlink) + /sbin/init
+├── sys/       Kernel device model (sysfs)
+├── tmp/       Temporary files (tmpfs at runtime)
+├── usr/
+│   ├── bin/   bash, ls, cp, mount, dmesg, …
+│   ├── lib/   libc.so, libc.a (musl)
+│   ├── sbin/  fdisk, mkfs, agetty, …
+│   └── share/ Locale data, man pages (minimal)
+└── var/
+    ├── log/   System logs
+    └── run/   Runtime PID files</kbd></pre>
+
+        <h2 class="sect2">The Role of musl</h2>
+        <p>
+          musl libc is the C standard library for LFS-Lite. It provides the
+          fundamental interface between application code and the Linux kernel:
+          memory allocation, file I/O, process management, signal handling,
+          and the POSIX threading model.
+        </p>
+        <p>
+          musl's design philosophy differs from glibc in several important ways:
+        </p>
+        <div class="variablelist">
+          <dl class="variablelist">
+            <dt><span class="term">Size</span></dt>
+            <dd><p>musl is dramatically smaller. A complete musl shared library
+            is typically under 1&nbsp;MB, compared to several megabytes for
+            glibc.</p></dd>
+            <dt><span class="term">Static linking</span></dt>
+            <dd><p>musl is designed from the ground up to produce correct and
+            small statically linked binaries. glibc's static linking has
+            historically had edge cases involving NSS (Name Service Switch)
+            and dynamic loading.</p></dd>
+            <dt><span class="term">Correctness</span></dt>
+            <dd><p>musl prioritises strict POSIX and C standard conformance
+            over compatibility with poorly written software that relies on
+            glibc-specific extensions.</p></dd>
+            <dt><span class="term">Auditability</span></dt>
+            <dd><p>The musl source code is compact enough to be read in full
+            by a single engineer in a reasonable timeframe. glibc's source
+            runs to millions of lines.</p></dd>
+          </dl>
+        </div>
+        <p>
+          The trade-off is compatibility: software written for glibc-specific
+          extensions may not compile or run correctly against musl. For
+          LFS-Lite's package set, this is not a concern.
+        </p>
+
+        <h2 class="sect2">Package Dependency Graph</h2>
+        <p>
+          The following diagram shows the dependency relationships between the
+          packages in this book. Packages below a line depend on those above.
+        </p>
+        <pre class="userinput"><kbd class="command">Linux Kernel Headers
+    │
+    ▼
+musl libc  (depends on: kernel headers)
+    │
+    ├──▶ coreutils    (statically linked against musl)
+    ├──▶ bash         (statically linked against musl)
+    └──▶ util-linux   (dynamically linked against musl)
+
+BusyBox  (statically linked against musl, initramfs only)
+
+Linux Kernel  (compiled independently, loads initramfs)
+
+GRUB  (compiled on host, not linked against musl)</kbd></pre>
+
+        <h2 class="sect2">initramfs vs. Final Root</h2>
+        <p>
+          A common source of confusion for newcomers is the distinction between
+          the initramfs and the final root filesystem. The table below
+          summarises the differences:
+        </p>
+        <table class="compat">
+          <tr><th>Property</th><th>initramfs</th><th>Final Root</th></tr>
+          <tr><td>Storage</td><td>RAM (extracted from cpio archive)</td><td>Disk (ext4 partition)</td></tr>
+          <tr><td>Lifespan</td><td>Seconds — until switch_root</td><td>Runtime of the system</td></tr>
+          <tr><td>Shell</td><td>BusyBox ash</td><td>GNU bash</td></tr>
+          <tr><td>Coreutils</td><td>BusyBox applets</td><td>GNU coreutils</td></tr>
+          <tr><td>Init</td><td>/sbin/init (BusyBox-based script)</td><td>/sbin/init (bash script, PID 1)</td></tr>
+          <tr><td>Purpose</td><td>Mount real root, pivot</td><td>Run the actual system</td></tr>
+        </table>
+
+        <h2 class="sect2">Build Directory Layout</h2>
+        <p>
+          All build activity takes place under
+          <code class="filename">/mnt/lfs-lite</code>:
+        </p>
+        <pre class="userinput"><kbd class="command">/mnt/lfs-lite/
+├── sources/         Source tarballs and git clones
+│   ├── musl-1.2.6/
+│   ├── coreutils-9.11/
+│   ├── bash-5.3/
+│   ├── util-linux-2.42/
+│   ├── busybox/     (git clone)
+│   ├── linux-7.1.2/
+│   └── grub-2.14/
+├── rootfs/          The final root filesystem (installed with DESTDIR)
+├── initramfs/       initramfs staging directory (BusyBox + /init)
+├── tools/           Build helper scripts (musl-gcc wrapper)
+├── logs/            Build logs
+└── install.sh       Installer script</kbd></pre>
+      </div>
+
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="toolchain.html" title="Toolchain Validation">Prev</a>
+          <p>Toolchain Validation</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter01.html" title="Chapter 1. Preparing the Environment">Next</a>
+          <p>Chapter 1. Preparing the Environment</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

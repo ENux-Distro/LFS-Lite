@@ -1,0 +1,208 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 11. Switching Root into the Final System — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter10.html" title="Chapter 10. Custom Init System">Prev</a>
+          <p>Chapter 10. Custom Init System</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter12.html" title="Chapter 12. Custom Installer Script">Next</a>
+          <p>Chapter 12. Custom Installer Script</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;11. Switching Root into the Final System</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          Before committing to a disk installation, this chapter verifies
+          the completeness of the final root filesystem and validates it
+          by chroot-testing from the host. This is the last checkpoint
+          before the installer writes everything to disk.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate time:</strong>
+            <span class="segbody">&lt; 10 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Risk level:</strong>
+            <span class="segbody">Low — read-only validation only</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="switchroot-what" name="switchroot-what"></a>11.1. Understanding switch_root</h2>
+        <p>
+          The transition from the initramfs environment to the final root
+          filesystem is performed by the <code class="command">switch_root</code>
+          utility (provided by BusyBox in the initramfs). This operation:
+        </p>
+        <ol>
+          <li>Moves all virtual filesystem mounts from the initramfs paths
+          to the new root's paths.</li>
+          <li>Deletes all files in the initramfs to free the RAM they
+          occupied — the initramfs lives in memory, and freeing it matters
+          on constrained systems.</li>
+          <li>Performs a <code class="command">chroot</code> into the new
+          root.</li>
+          <li>Executes the specified binary — our
+          <code class="filename">/sbin/init</code> — as PID&nbsp;1.</li>
+        </ol>
+        <p>
+          This is subtly different from a plain
+          <code class="command">chroot</code>. After
+          <code class="command">switch_root</code> completes, the initramfs
+          filesystem is gone. The process tree is now rooted in the real
+          filesystem. There is no going back.
+        </p>
+
+        <h2 class="sect2"><a id="switchroot-verify" name="switchroot-verify"></a>11.2. Verifying the Final Root Filesystem</h2>
+        <p>
+          Run a final audit of the root filesystem before proceeding:
+        </p>
+        <pre class="userinput"><kbd class="command"># Check essential binaries
+for binary in \
+    $LFS_ROOT/usr/bin/bash \
+    $LFS_ROOT/usr/bin/ls \
+    $LFS_ROOT/usr/bin/cp \
+    $LFS_ROOT/usr/bin/mount \
+    $LFS_ROOT/usr/sbin/fdisk \
+    $LFS_ROOT/sbin/init; do
+    if [ -f "$binary" ]; then
+        echo "OK:      $binary"
+    else
+        echo "MISSING: $binary"
+    fi
+done</kbd></pre>
+        <pre class="userinput"><kbd class="command"># Check essential libraries
+ls -la $LFS_ROOT/usr/lib/libc*
+ls -la $LFS_ROOT/lib64/ld-musl-x86_64.so.1</kbd></pre>
+        <pre class="userinput"><kbd class="command"># Check essential configuration files
+for file in \
+    $LFS_ROOT/etc/hostname \
+    $LFS_ROOT/etc/fstab \
+    $LFS_ROOT/etc/passwd \
+    $LFS_ROOT/etc/profile \
+    $LFS_ROOT/boot/vmlinuz-7.1.2 \
+    $LFS_ROOT/boot/initramfs.cpio.gz \
+    $LFS_ROOT/boot/grub/grub.cfg; do
+    if [ -e "$file" ]; then
+        echo "OK:      $file"
+    else
+        echo "MISSING: $file"
+    fi
+done</kbd></pre>
+        <p>
+          Every line must print <code>OK:</code>. If any file is missing,
+          return to the relevant chapter and complete that step before
+          continuing.
+        </p>
+
+        <h2 class="sect2"><a id="switchroot-chroot" name="switchroot-chroot"></a>11.3. Chroot Testing</h2>
+        <p>
+          Enter the final root filesystem from the host using
+          <code class="command">chroot</code> to validate that the shell,
+          coreutils, and util-linux are functional:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo mount --bind /proc $LFS_ROOT/proc
+sudo mount --bind /sys  $LFS_ROOT/sys
+sudo mount --bind /dev  $LFS_ROOT/dev
+
+sudo chroot $LFS_ROOT /usr/bin/bash --login</kbd></pre>
+        <p>
+          Inside the chroot, run these sanity checks:
+        </p>
+        <pre class="userinput"><kbd class="command"># Inside the chroot environment
+echo "Running inside LFS-Lite chroot"
+bash --version | head -1
+ls --color=auto /usr/bin | head -10
+mount --version
+fdisk --version
+dmesg --version
+cat /etc/hostname
+exit</kbd></pre>
+        <p>
+          After exiting the chroot, unmount the virtual filesystems:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo umount $LFS_ROOT/dev
+sudo umount $LFS_ROOT/sys
+sudo umount $LFS_ROOT/proc</kbd></pre>
+
+        <div class="admon note">
+          <h3>What a Successful Test Looks Like</h3>
+          <p>
+            If the chroot test passes — commands run, output is correct,
+            no dynamic linker errors — the system is ready for disk
+            installation. A dynamic linker error such as
+            <code>error while loading shared libraries: libc.so: cannot
+            open shared object file</code> indicates that util-linux was
+            built as a shared-linked binary but the musl shared library
+            is not at the expected path. Verify
+            <code class="filename">$LFS_ROOT/usr/lib/libc.so</code> and
+            <code class="filename">$LFS_ROOT/lib64/ld-musl-x86_64.so.1</code>
+            both exist.
+          </p>
+        </div>
+
+        <h2 class="sect2">11.4. Final Disk Space Summary</h2>
+        <p>
+          Before installing to a target disk, confirm the size of the
+          completed root filesystem:
+        </p>
+        <pre class="userinput"><kbd class="command">du -sh $LFS_ROOT
+du -sh $LFS_ROOT/usr/bin
+du -sh $LFS_ROOT/usr/lib
+du -sh $LFS_ROOT/boot</kbd></pre>
+        <p>
+          A minimal LFS-Lite root filesystem with statically linked
+          coreutils and bash typically measures 80–150&nbsp;MB. The kernel
+          modules in <code class="filename">/lib/modules/</code> may add
+          another 50–200&nbsp;MB depending on the build configuration.
+        </p>
+        <p>
+          Proceed to
+          <a href="chapter12.html">Chapter&nbsp;12</a> to write the system
+          to a target disk with the installer script.
+        </p>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter10.html" title="Chapter 10. Custom Init System">Prev</a>
+          <p>Chapter 10. Custom Init System</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter12.html" title="Chapter 12. Custom Installer Script">Next</a>
+          <p>Chapter 12. Custom Installer Script</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

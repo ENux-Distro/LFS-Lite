@@ -1,0 +1,189 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 6. Building BusyBox for initramfs — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter05.html" title="Chapter 5. Building util-linux">Prev</a>
+          <p>Chapter 5. Building util-linux</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter07.html" title="Chapter 7. Linux Kernel Compilation">Next</a>
+          <p>Chapter 7. Linux Kernel Compilation</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;6. Building BusyBox for initramfs</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          BusyBox is sometimes described as &ldquo;the Swiss Army knife of
+          embedded Linux.&rdquo; It provides over 300 Unix utilities in a
+          single, small, statically linked binary. In LFS-Lite, BusyBox
+          serves a specific and bounded role: it populates the initramfs.
+          It is not present in the final root filesystem.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate build time:</strong>
+            <span class="segbody">3–6 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Required disk space:</strong>
+            <span class="segbody">~60 MB (build), ~1–2 MB (binary)</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Source:</strong>
+            <span class="segbody">git clone from git.busybox.net/busybox</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="bb-intro" name="bb-intro"></a>6.1. Introduction to BusyBox</h2>
+        <p>
+          At runtime, calling <code class="command">busybox ls</code> invokes
+          the <code>ls</code> implementation inside BusyBox. Creating a
+          symlink named <code>ls</code> that points to the
+          <code class="filename">busybox</code> binary achieves the same
+          effect transparently — the binary inspects
+          <code>argv[0]</code> to determine which applet to run.
+        </p>
+        <p>
+          The initramfs needs a shell, basic file utilities, and the
+          <code class="command">switch_root</code> command. BusyBox provides
+          all of these in a single binary. Once the system pivots into the
+          real root (which has GNU coreutils, bash, and util-linux), BusyBox
+          is no longer needed and is not present.
+        </p>
+
+        <h2 class="sect2"><a id="bb-update" name="bb-update"></a>6.2. Updating the BusyBox Source</h2>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES/busybox
+git pull</kbd></pre>
+        <p>Check the version that will be built:</p>
+        <pre class="userinput"><kbd class="command">head -5 Makefile</kbd></pre>
+
+        <h2 class="sect2"><a id="bb-configure" name="bb-configure"></a>6.3. Configuring BusyBox</h2>
+        <p>
+          BusyBox uses a kernel-style Kconfig build system. Start from the
+          default configuration:
+        </p>
+        <pre class="userinput"><kbd class="command">make defconfig</kbd></pre>
+        <p>
+          Apply the critical configuration changes programmatically:
+        </p>
+        <pre class="userinput"><kbd class="command"># Enable static linking — essential for initramfs portability
+sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/' .config
+
+# Verify switch_root is enabled (present in defconfig, but confirm)
+grep -q 'CONFIG_SWITCH_ROOT=y' .config || \
+    echo 'CONFIG_SWITCH_ROOT=y' &gt;&gt; .config
+
+# Disable utmp/wtmp — not needed in initramfs, avoids musl edge cases
+sed -i 's/CONFIG_FEATURE_WTMP=y/# CONFIG_FEATURE_WTMP is not set/' .config
+sed -i 's/CONFIG_FEATURE_UTMP=y/# CONFIG_FEATURE_UTMP is not set/' .config
+
+# Append extra compiler flags
+cat &gt;&gt; .config &lt;&lt; "EOF"
+CONFIG_EXTRA_CFLAGS="-O2 -pipe"
+EOF</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            For interactive configuration, run
+            <code class="command">make menuconfig</code> after
+            <code class="command">make defconfig</code>. The most important
+            option to verify is <code>CONFIG_STATIC=y</code> under
+            <em>Settings &rarr; Build Options</em>.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="bb-compile" name="bb-compile"></a>6.4. Compiling BusyBox</h2>
+        <pre class="userinput"><kbd class="command">make -j${JOBS} \
+    CC="$LFS_TOOLS/musl-gcc" \
+    CFLAGS="-O2 -pipe" \
+    LDFLAGS="-static"</kbd></pre>
+        <p>
+          The build produces a single binary:
+          <code class="filename">busybox</code>. Verify it is statically
+          linked and check its size:
+        </p>
+        <pre class="userinput"><kbd class="command">file busybox
+ldd busybox 2&gt;&amp;1 | grep -i "not a dynamic"
+ls -lh busybox</kbd></pre>
+        <p>
+          A typical LFS-Lite BusyBox binary ranges from 700&nbsp;KB to
+          2&nbsp;MB depending on which applets are enabled.
+        </p>
+
+        <h2 class="sect2"><a id="bb-install" name="bb-install"></a>6.5. Installing BusyBox for initramfs</h2>
+        <p>
+          Install BusyBox into a dedicated initramfs staging directory —
+          <strong>not</strong> into <code>$LFS_ROOT</code>:
+        </p>
+        <pre class="userinput"><kbd class="command">export INITRAMFS=$LFS/initramfs
+mkdir -pv $INITRAMFS/{bin,dev,etc,lib,lib64,mnt/root,proc,root,sbin,sys,tmp}
+
+cp -v busybox $INITRAMFS/bin/busybox
+chmod +x $INITRAMFS/bin/busybox</kbd></pre>
+        <p>
+          Create applet symlinks for every tool the initramfs
+          <code class="filename">/init</code> script requires:
+        </p>
+        <pre class="userinput"><kbd class="command">for applet in sh ash cat cp ls mkdir mount umount mdev \
+              switch_root grep sed awk find echo printf \
+              sleep dmesg; do
+    ln -sfv busybox $INITRAMFS/bin/$applet
+done</kbd></pre>
+        <p>Verify BusyBox is functional in the staging area:</p>
+        <pre class="userinput"><kbd class="command">$INITRAMFS/bin/busybox echo "BusyBox is operational."
+$INITRAMFS/bin/sh -c "echo 'sh applet works'"</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            The <code>$INITRAMFS</code> variable must be set whenever you
+            open a new terminal and need to work with the initramfs staging
+            directory. Add
+            <code>export INITRAMFS=/mnt/lfs-lite/initramfs</code>
+            to your <code class="filename">~/.bashrc</code> alongside the
+            other LFS variables.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter05.html" title="Chapter 5. Building util-linux">Prev</a>
+          <p>Chapter 5. Building util-linux</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter07.html" title="Chapter 7. Linux Kernel Compilation">Next</a>
+          <p>Chapter 7. Linux Kernel Compilation</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

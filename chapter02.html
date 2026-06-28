@@ -1,0 +1,220 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 2. Building musl libc — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter01.html" title="Chapter 1. Preparing the Environment">Prev</a>
+          <p>Chapter 1. Preparing the Environment</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter03.html" title="Chapter 3. Building coreutils">Next</a>
+          <p>Chapter 3. Building coreutils</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;2. Building musl libc</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          musl (pronounced &ldquo;muscle&rdquo;) is a lightweight, fast, and
+          correct implementation of the C standard library. It targets the
+          Linux kernel and provides POSIX, C99, and C11 interfaces. Unlike
+          glibc, musl does not include optional features that increase code
+          size or introduce complexity without clear benefit.
+        </p>
+        <p>
+          musl is the foundation of LFS-Lite. Every other package in this
+          book links against it. It must be built first.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate build time:</strong>
+            <span class="segbody">&lt; 2 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Required disk space:</strong>
+            <span class="segbody">~30 MB</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Source tarball:</strong>
+            <span class="segbody">musl-1.2.6.tar.gz</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+        <h2 class="sect2"><a id="musl-intro" name="musl-intro"></a>2.1. Introduction to musl</h2>
+        <p>musl provides:</p>
+        <ul>
+          <li>The C standard library headers (<code>stdio.h</code>, <code>stdlib.h</code>, <code>string.h</code>, etc.)</li>
+          <li>The shared library (<code class="filename">libc.so</code>) that programs link against at runtime.</li>
+          <li>The static library (<code class="filename">libc.a</code>) for statically linked binaries.</li>
+          <li>The dynamic linker (<code class="filename">ld-musl-x86_64.so.1</code>) that loads shared libraries at program startup.</li>
+        </ul>
+
+        <h2 class="sect2"><a id="musl-extract" name="musl-extract"></a>2.2. Extracting the Source</h2>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
+tar -xzf musl-1.2.6.tar.gz
+cd musl-1.2.6</kbd></pre>
+
+        <h2 class="sect2"><a id="musl-configure" name="musl-configure"></a>2.3. Configuring musl</h2>
+        <p>
+          musl uses its own configure script, simpler than Autoconf-generated
+          scripts but following the same <code>./configure --prefix=...</code>
+          convention. We install musl into the final root filesystem using
+          <code class="parameter">--prefix=/usr</code> with
+          <code class="parameter">DESTDIR</code> to redirect the installation:
+        </p>
+        <pre class="userinput"><kbd class="command">./configure \
+    --prefix=/usr \
+    --syslibdir=/lib64 \
+    --enable-shared \
+    --enable-static</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>The meaning of the configure options:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>--prefix=/usr</code></em></span></dt>
+            <dd><p>Tells musl that its files logically reside under
+            <code class="filename">/usr</code>. This affects the paths embedded
+            into the shared library and the dynamic linker.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--syslibdir=/lib64</code></em></span></dt>
+            <dd><p>Specifies where the dynamic linker
+            (<code class="filename">ld-musl-x86_64.so.1</code>) will be
+            installed. <code class="filename">/lib64</code> is the conventional
+            location expected by the Linux kernel's ELF interpreter
+            mechanism.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--enable-shared</code></em></span></dt>
+            <dd><p>Build the shared library (<code class="filename">libc.so</code>).
+            Required for dynamically linked programs.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--enable-static</code></em></span></dt>
+            <dd><p>Build the static library (<code class="filename">libc.a</code>).
+            Required for statically linked programs, including BusyBox.</p></dd>
+          </dl>
+        </div>
+
+        <h2 class="sect2"><a id="musl-compile" name="musl-compile"></a>2.4. Compiling musl</h2>
+        <pre class="userinput"><kbd class="command">make -j${JOBS}</kbd></pre>
+        <p>
+          The musl build is fast — typically under two minutes on modern
+          hardware. If the build fails, the most likely cause is a host
+          compiler too old to support C11. Verify with
+          <code class="command">gcc --version</code>.
+        </p>
+
+        <h2 class="sect2"><a id="musl-install" name="musl-install"></a>2.5. Installing musl</h2>
+        <pre class="userinput"><kbd class="command">make DESTDIR=$LFS_ROOT install</kbd></pre>
+        <p>
+          musl installs the following key files (paths relative to
+          <code>$LFS_ROOT</code>):
+        </p>
+        <table class="compat">
+          <tr><th>Path</th><th>Purpose</th></tr>
+          <tr><td>usr/include/</td><td>C standard library headers</td></tr>
+          <tr><td>usr/lib/libc.so</td><td>Shared library symlink</td></tr>
+          <tr><td>usr/lib/libc.a</td><td>Static library</td></tr>
+          <tr><td>lib64/ld-musl-x86_64.so.1</td><td>Dynamic linker</td></tr>
+        </table>
+        <p>Verify the installation:</p>
+        <pre class="userinput"><kbd class="command">ls -la $LFS_ROOT/lib64/
+ls -la $LFS_ROOT/usr/lib/libc*
+ls $LFS_ROOT/usr/include/stdio.h</kbd></pre>
+
+        <h2 class="sect2"><a id="musl-wrapper" name="musl-wrapper"></a>2.6. Creating the musl-gcc Wrapper</h2>
+        <p>
+          Create a wrapper script that subsequent build chapters will use to
+          compile and link against our musl installation rather than the host's
+          glibc:
+        </p>
+        <pre class="userinput"><kbd class="command">mkdir -pv $LFS_TOOLS
+
+cat &gt; $LFS_TOOLS/musl-gcc &lt;&lt; EOF
+#!/bin/bash
+exec gcc \\
+    --sysroot=$LFS_ROOT \\
+    -isystem $LFS_ROOT/usr/include \\
+    -L$LFS_ROOT/usr/lib \\
+    -L$LFS_ROOT/lib64 \\
+    -Wl,-dynamic-linker,$LFS_ROOT/lib64/ld-musl-x86_64.so.1 \\
+    "\$@"
+EOF
+
+chmod +x $LFS_TOOLS/musl-gcc</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            This wrapper embeds absolute paths to the build-time
+            <code>$LFS_ROOT</code>. It is a <em>build-time</em> tool only,
+            used to compile the remaining packages. It does not ship in the
+            final system.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="musl-verify" name="musl-verify"></a>2.7. Verifying musl</h2>
+        <p>
+          Write a minimal C program and compile it against musl to confirm
+          the installation is correct:
+        </p>
+        <pre class="userinput"><kbd class="command">cat &gt; /tmp/musl-test.c &lt;&lt; "EOF"
+#include &lt;stdio.h&gt;
+#include &lt;stdlib.h&gt;
+
+int main(void) {
+    printf("musl libc is working.\n");
+    return EXIT_SUCCESS;
+}
+EOF
+
+$LFS_TOOLS/musl-gcc /tmp/musl-test.c -o /tmp/musl-test
+/tmp/musl-test</kbd></pre>
+        <p>Expected output:</p>
+        <pre class="userinput"><kbd class="command">musl libc is working.</kbd></pre>
+        <p>
+          Verify that the binary links against our musl (not the host's
+          libc):
+        </p>
+        <pre class="userinput"><kbd class="command">ldd /tmp/musl-test</kbd></pre>
+        <p>
+          The output should reference
+          <code class="filename">ld-musl-x86_64.so.1</code> from within
+          <code>$LFS_ROOT</code>. If it references the host's
+          <code class="filename">/lib/x86_64-linux-gnu/libc.so.6</code>,
+          the wrapper script is not being invoked correctly.
+        </p>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter01.html" title="Chapter 1. Preparing the Environment">Prev</a>
+          <p>Chapter 1. Preparing the Environment</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter03.html" title="Chapter 3. Building coreutils">Next</a>
+          <p>Chapter 3. Building coreutils</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

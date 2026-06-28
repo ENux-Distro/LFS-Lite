@@ -1,0 +1,201 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 5. Building util-linux — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter04.html" title="Chapter 4. Building bash">Prev</a>
+          <p>Chapter 4. Building bash</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter06.html" title="Chapter 6. Building BusyBox">Next</a>
+          <p>Chapter 6. Building BusyBox</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;5. Building util-linux</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          util-linux is the standard collection of Linux system utilities,
+          providing essential tools for disk partitioning, filesystem
+          operations, system information, terminal control, and miscellaneous
+          system functions. Many of these tools interact directly with kernel
+          interfaces and require correct compile-time knowledge of the target
+          kernel's ABI.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate build time:</strong>
+            <span class="segbody">4–8 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Required disk space:</strong>
+            <span class="segbody">~250 MB</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Source tarball:</strong>
+            <span class="segbody">util-linux-2.42.tar.xz</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="util-intro" name="util-intro"></a>5.1. Introduction to util-linux</h2>
+        <p>Among the tools provided by util-linux are:</p>
+        <ul>
+          <li><strong>Disk partitioning:</strong> <code class="command">fdisk</code>, <code class="command">sfdisk</code>, <code class="command">cfdisk</code></li>
+          <li><strong>Filesystem operations:</strong> <code class="command">mount</code>, <code class="command">umount</code>, <code class="command">blkid</code>, <code class="command">lsblk</code>, <code class="command">findmnt</code></li>
+          <li><strong>System information:</strong> <code class="command">lscpu</code>, <code class="command">lsmem</code>, <code class="command">dmesg</code></li>
+          <li><strong>Miscellaneous:</strong> <code class="command">kill</code>, <code class="command">flock</code>, <code class="command">nsenter</code>, <code class="command">unshare</code></li>
+        </ul>
+
+        <h2 class="sect2"><a id="util-headers" name="util-headers"></a>5.2. Installing Kernel Headers</h2>
+        <p>
+          Before building util-linux, the target kernel headers must be
+          installed into the sysroot. These headers define the ABI structures
+          that util-linux tools use when interacting with the kernel. Extract
+          and install them from the kernel source:
+        </p>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
+tar -xJf linux-7.1.2.tar.xz
+cd linux-7.1.2
+
+make mrproper
+make headers
+find usr/include -name '.*' -delete
+rm usr/include/Makefile
+cp -rv usr/include $LFS_ROOT/usr/</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>Explanation of commands:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>make mrproper</code></em></span></dt>
+            <dd><p>Ensures a completely clean state, removing any previous
+            build artefacts or configuration files.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>make headers</code></em></span></dt>
+            <dd><p>Generates the sanitised kernel headers — the
+            <code>uapi</code> headers that are safe to export to userspace
+            programs. These are distinct from the in-tree kernel headers used
+            during kernel compilation itself.</p></dd>
+          </dl>
+        </div>
+        <p>Verify:</p>
+        <pre class="userinput"><kbd class="command">ls $LFS_ROOT/usr/include/linux/types.h</kbd></pre>
+
+        <h2 class="sect2"><a id="util-extract" name="util-extract"></a>5.3. Extracting util-linux</h2>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
+tar -xJf util-linux-2.42.tar.xz
+cd util-linux-2.42</kbd></pre>
+
+        <h2 class="sect2"><a id="util-configure" name="util-configure"></a>5.4. Configuring util-linux</h2>
+        <p>
+          util-linux is a large package with many optional components. We
+          configure it to build only the tools needed for a minimal system,
+          disabling those that require PAM, Python, ncurses, or systemd:
+        </p>
+        <pre class="userinput"><kbd class="command">./configure \
+    --prefix=/usr \
+    --host=x86_64-linux-musl \
+    --build=$(config/config.guess) \
+    --disable-chfn-chsh \
+    --disable-login \
+    --disable-nologin \
+    --disable-su \
+    --disable-setpriv \
+    --disable-runuser \
+    --disable-pylibmount \
+    --disable-static \
+    --disable-liblastlog2 \
+    --without-python \
+    --without-systemd \
+    --without-systemdsystemunitdir \
+    --without-ncurses \
+    --without-tinfo \
+    CC="$LFS_TOOLS/musl-gcc" \
+    CFLAGS="-O2 -pipe" \
+    CPPFLAGS="-I$LFS_ROOT/usr/include" \
+    LDFLAGS="-L$LFS_ROOT/usr/lib -L$LFS_ROOT/lib64"</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>The meaning of selected configure options:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>--disable-chfn-chsh, --disable-login, --disable-su</code></em></span></dt>
+            <dd><p>These tools require PAM (Pluggable Authentication Modules),
+            which is not in LFS-Lite's scope. Disabling them avoids a
+            complex and large dependency.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--disable-static</code></em></span></dt>
+            <dd><p>For util-linux we build shared libraries and dynamically
+            linked binaries. The tools are large enough that the space
+            overhead of static linking across many binaries outweighs the
+            convenience for this package.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--without-systemd</code></em></span></dt>
+            <dd><p>util-linux can optionally install systemd unit files. We
+            have no systemd; this flag prevents the build system from
+            searching for it.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--without-ncurses, --without-tinfo</code></em></span></dt>
+            <dd><p>Disables ncurses-dependent features in tools like
+            <code class="command">cfdisk</code>. We accept simpler terminal
+            output to avoid the ncurses dependency.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>CPPFLAGS</code></em></span></dt>
+            <dd><p>Points the C preprocessor at our sysroot's kernel headers,
+            ensuring util-linux compiles against the correct Linux ABI
+            definitions.</p></dd>
+          </dl>
+        </div>
+
+        <h2 class="sect2"><a id="util-compile" name="util-compile"></a>5.5. Compiling util-linux</h2>
+        <pre class="userinput"><kbd class="command">make -j${JOBS}</kbd></pre>
+
+        <h2 class="sect2"><a id="util-install" name="util-install"></a>5.6. Installing util-linux</h2>
+        <pre class="userinput"><kbd class="command">make DESTDIR=$LFS_ROOT install</kbd></pre>
+        <p>Verify that key tools are present:</p>
+        <pre class="userinput"><kbd class="command">ls $LFS_ROOT/usr/bin/mount
+ls $LFS_ROOT/usr/bin/umount
+ls $LFS_ROOT/usr/sbin/fdisk
+ls $LFS_ROOT/usr/bin/blkid
+ls $LFS_ROOT/usr/bin/dmesg
+ls $LFS_ROOT/usr/bin/lsblk</kbd></pre>
+        <p>
+          With util-linux installed, the final system now has all the tools
+          necessary to manage disks and filesystems interactively.
+          Proceed to
+          <a href="chapter06.html">Chapter&nbsp;6</a> to build BusyBox for
+          the initramfs.
+        </p>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter04.html" title="Chapter 4. Building bash">Prev</a>
+          <p>Chapter 4. Building bash</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter06.html" title="Chapter 6. Building BusyBox">Next</a>
+          <p>Chapter 6. Building BusyBox</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

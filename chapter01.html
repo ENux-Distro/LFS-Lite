@@ -1,0 +1,236 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 1. Preparing the Environment — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="architecture.html" title="System Architecture Overview">Prev</a>
+          <p>System Architecture Overview</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter02.html" title="Chapter 2. Building musl libc">Next</a>
+          <p>Chapter 2. Building musl libc</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;1. Preparing the Environment</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          Before a single line of source code is compiled, a clean and
+          consistent build environment must be established. This chapter
+          creates the directory hierarchy, sets the environment variables
+          that all subsequent chapters rely upon, verifies the source
+          tarballs, and writes the static configuration files that will
+          live in the final root filesystem.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate time:</strong>
+            <span class="segbody">&lt; 5 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Disk space used:</strong>
+            <span class="segbody">Negligible</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="env-dirs" name="env-dirs"></a>1.1. Setting Up the Build Directory</h2>
+        <p>
+          All work in this book takes place under a single root directory
+          anchored at <code class="filename">/mnt/lfs-lite</code>. Establish
+          the core environment variables now and add them to your shell's
+          startup file so they persist across terminal sessions:
+        </p>
+        <pre class="userinput"><kbd class="command">export LFS=/mnt/lfs-lite
+export LFS_SOURCES=$LFS/sources
+export LFS_ROOT=$LFS/rootfs
+export LFS_TOOLS=$LFS/tools
+export JOBS=$(nproc)
+
+cat &gt;&gt; ~/.bashrc &lt;&lt; "EOF"
+export LFS=/mnt/lfs-lite
+export LFS_SOURCES=$LFS/sources
+export LFS_ROOT=$LFS/rootfs
+export LFS_TOOLS=$LFS/tools
+export JOBS=$(nproc)
+EOF
+
+source ~/.bashrc</kbd></pre>
+
+        <h2 class="sect2"><a id="env-skeleton" name="env-skeleton"></a>1.2. Creating the Directory Skeleton</h2>
+        <p>
+          Create the directory structure that will house both the build
+          artifacts and the final root filesystem:
+        </p>
+        <pre class="userinput"><kbd class="command">mkdir -pv $LFS/{sources,rootfs,tools,build,logs}
+
+mkdir -pv $LFS_ROOT/{bin,boot,dev,etc,home,lib,lib64,proc,root,run,sbin,sys,tmp}
+mkdir -pv $LFS_ROOT/usr/{bin,lib,sbin,share,include}
+mkdir -pv $LFS_ROOT/var/{log,run,tmp}
+
+chmod 1777 $LFS_ROOT/tmp
+chmod 1777 $LFS_ROOT/var/tmp</kbd></pre>
+
+        <h2 class="sect2"><a id="env-sources" name="env-sources"></a>1.3. Verifying Source Tarballs</h2>
+        <p>
+          The following sources must be present in
+          <code class="filename">$LFS_SOURCES</code>:
+        </p>
+        <pre class="userinput"><kbd class="command">ls -lh $LFS_SOURCES/</kbd></pre>
+        <p>
+          Expected files:
+        </p>
+        <pre class="userinput"><kbd class="command">bash-5.3.tar.gz
+coreutils-9.11.tar.xz
+grub-2.14.tar.xz
+linux-7.1.2.tar.xz
+musl-1.2.6.tar.gz
+util-linux-2.42.tar.xz
+busybox/          (git clone)</kbd></pre>
+        <p>
+          BusyBox must be cloned from its official repository if not already
+          present:
+        </p>
+        <pre class="userinput"><kbd class="command">if [ ! -d $LFS_SOURCES/busybox ]; then
+    cd $LFS_SOURCES
+    git clone https://git.busybox.net/busybox
+fi
+
+ls $LFS_SOURCES/busybox/Makefile</kbd></pre>
+
+        <h2 class="sect2"><a id="env-log" name="env-log"></a>1.4. Establishing a Build Log</h2>
+        <p>
+          Pipe all build output through <code>tee</code> so that failures
+          can be diagnosed after the fact:
+        </p>
+        <pre class="userinput"><kbd class="command">export LFS_LOG=$LFS/logs/build-$(date +%Y%m%d-%H%M).log</kbd></pre>
+        <p>
+          For each build step in subsequent chapters you may optionally wrap
+          commands as follows:
+        </p>
+        <pre class="userinput"><kbd class="command">make 2&gt;&amp;1 | tee -a $LFS_LOG</kbd></pre>
+
+        <h2 class="sect2"><a id="env-symlinks" name="env-symlinks"></a>1.5. Creating Essential Symlinks</h2>
+        <p>
+          The final root filesystem must contain symbolic links to satisfy
+          tools that hard-code paths based on traditional Unix conventions.
+          Modern systems merge <code class="filename">/bin</code>,
+          <code class="filename">/lib</code>, and
+          <code class="filename">/sbin</code> into their
+          <code class="filename">/usr</code> counterparts:
+        </p>
+        <pre class="userinput"><kbd class="command">ln -sfv usr/bin  $LFS_ROOT/bin
+ln -sfv usr/lib  $LFS_ROOT/lib
+ln -sfv usr/sbin $LFS_ROOT/sbin</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            On x86_64 systems the dynamic linker is placed at
+            <code class="filename">/lib64/ld-musl-x86_64.so.1</code>.
+            The <code class="filename">lib64</code> directory was created
+            above and will be populated when musl is installed in
+            <a href="chapter02.html">Chapter&nbsp;2</a>.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="env-config" name="env-config"></a>1.6. Creating Static Configuration Files</h2>
+        <p>
+          Several configuration files must exist in the final system before
+          it can boot. Create them now so that they are in place throughout
+          the build:
+        </p>
+        <pre class="userinput"><kbd class="command">echo "lfslite" &gt; $LFS_ROOT/etc/hostname
+
+cat &gt; $LFS_ROOT/etc/passwd &lt;&lt; "EOF"
+root:x:0:0:root:/root:/bin/bash
+EOF
+
+cat &gt; $LFS_ROOT/etc/group &lt;&lt; "EOF"
+root:x:0:
+EOF
+
+cat &gt; $LFS_ROOT/etc/hosts &lt;&lt; "EOF"
+127.0.0.1   localhost
+127.0.1.1   lfslite
+::1         localhost
+EOF
+
+cat &gt; $LFS_ROOT/etc/profile &lt;&lt; "EOF"
+export PATH=/usr/bin:/usr/sbin:/bin:/sbin
+export PS1='[\u@\h \W]\$ '
+export HOME=/root
+EOF</kbd></pre>
+
+        <h2 class="sect2"><a id="env-flags" name="env-flags"></a>1.7. Setting Build Flags</h2>
+        <p>
+          Set the following environment variables in your current shell before
+          beginning Chapter&nbsp;2. They control compiler behaviour for all
+          subsequent package builds:
+        </p>
+        <pre class="userinput"><kbd class="command">export CC=gcc
+export CXX=g++
+export CFLAGS="-O2 -pipe"
+export CXXFLAGS="-O2 -pipe"
+export MAKEFLAGS="-j${JOBS}"</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>The meaning of these flags:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>-O2</code></em></span></dt>
+            <dd><p>Enable a significant set of compiler optimisations without
+            the occasional correctness issues that <code>-O3</code> can
+            introduce in sensitive low-level code.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>-pipe</code></em></span></dt>
+            <dd><p>Instruct GCC to use pipes rather than temporary files for
+            inter-stage communication, improving build speed on most
+            systems.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>-j${JOBS}</code></em></span></dt>
+            <dd><p>Parallelise the build across all available CPU cores. Set
+            by <code>export JOBS=$(nproc)</code> above.</p></dd>
+          </dl>
+        </div>
+        <p>
+          With the environment in place, you are ready to build the first
+          package. Proceed to
+          <a href="chapter02.html">Chapter&nbsp;2: Building musl libc</a>.
+        </p>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="architecture.html" title="System Architecture Overview">Prev</a>
+          <p>System Architecture Overview</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter02.html" title="Chapter 2. Building musl libc">Next</a>
+          <p>Chapter 2. Building musl libc</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

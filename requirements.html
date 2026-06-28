@@ -1,0 +1,260 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Host System Requirements — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Preface</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="introduction.html" title="Introduction">Prev</a>
+          <p>Introduction</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="toolchain.html" title="Toolchain Validation">Next</a>
+          <p>Toolchain Validation</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Host System Requirements</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+
+      <div class="package">
+        <h2 class="sect2">Overview</h2>
+        <p>
+          Before any source code is compiled, the host system must be verified
+          to carry all necessary build tools at sufficient versions. An
+          incompatible host can produce silently broken binaries — a failure
+          mode that is considerably more difficult to diagnose than an outright
+          build error. This chapter establishes the baseline.
+        </p>
+      </div>
+
+      <div class="installation">
+        <h2 class="sect2">Disk Space</h2>
+        <p>
+          The build process requires approximately the following disk space.
+          Allocate at least 10&nbsp;GB to avoid surprises during the kernel
+          build, which expands significantly during compilation.
+        </p>
+        <div class="segmentedlist" style="flex-direction:column;gap:0.3rem;">
+          <div class="seg"><strong class="segtitle">Source tarballs:</strong><span class="segbody"> ~500 MB</span></div>
+          <div class="seg"><strong class="segtitle">Build directories:</strong><span class="segbody"> ~2 GB</span></div>
+          <div class="seg"><strong class="segtitle">Final system image:</strong><span class="segbody"> ~300 MB</span></div>
+          <div class="seg"><strong class="segtitle">Kernel build:</strong><span class="segbody"> ~1.5 GB</span></div>
+          <div class="seg"><strong class="segtitle">Total recommended:</strong><span class="segbody"> <strong>~5 GB minimum, 10 GB comfortable</strong></span></div>
+        </div>
+
+        <h2 class="sect2">Required Tools</h2>
+        <p>
+          The host system must provide the following tools at the stated
+          minimum versions. Tools below these versions may produce incorrect
+          output or fail to build one or more packages.
+        </p>
+        <table class="compat">
+          <tr><th>Tool</th><th>Minimum Version</th></tr>
+          <tr><td>Bash</td><td>3.2</td></tr>
+          <tr><td>Binutils (ld)</td><td>2.13.1</td></tr>
+          <tr><td>Bison</td><td>2.7</td></tr>
+          <tr><td>Coreutils (sort)</td><td>8.1</td></tr>
+          <tr><td>Diffutils</td><td>2.8.1</td></tr>
+          <tr><td>Findutils</td><td>4.2.31</td></tr>
+          <tr><td>Gawk</td><td>4.0.1</td></tr>
+          <tr><td>GCC</td><td>5.4</td></tr>
+          <tr><td>G++</td><td>5.4</td></tr>
+          <tr><td>Grep</td><td>2.5.1a</td></tr>
+          <tr><td>Gzip</td><td>1.3.12</td></tr>
+          <tr><td>M4</td><td>1.4.10</td></tr>
+          <tr><td>Make</td><td>4.0</td></tr>
+          <tr><td>Patch</td><td>2.5.4</td></tr>
+          <tr><td>Perl</td><td>5.8.8</td></tr>
+          <tr><td>Python 3</td><td>3.4</td></tr>
+          <tr><td>Sed</td><td>4.1.5</td></tr>
+          <tr><td>Tar</td><td>1.22</td></tr>
+          <tr><td>Texinfo</td><td>5.0</td></tr>
+          <tr><td>XZ Utils</td><td>5.0.0</td></tr>
+          <tr><td>Linux Kernel</td><td>5.4</td></tr>
+        </table>
+        <p>
+          Additionally: the host kernel must support UNIX 98 PTYs
+          (<code class="filename">/dev/pts</code>), <code>awk</code> must be
+          GNU awk, <code>yacc</code> must be a Bison alias, and
+          <code>sh</code> must be Bash.
+        </p>
+
+        <h2 class="sect2">Version Check Script</h2>
+        <p>
+          Paste the following script into your terminal verbatim. It will
+          audit your host and report any deficiencies. All lines must print
+          <code>OK:</code> before you proceed.
+        </p>
+        <pre class="userinput"><kbd class="command">cat &gt; version-check.sh &lt;&lt; "EOF"
+#!/bin/bash
+# A script to list version numbers of critical development tools
+
+LC_ALL=C
+PATH=/usr/bin:/bin
+
+bail() { echo "FATAL: $1"; exit 1; }
+grep --version &gt; /dev/null 2&gt; /dev/null || bail "grep does not work"
+sed '' /dev/null || bail "sed does not work"
+sort   /dev/null || bail "sort does not work"
+
+ver_check()
+{
+   if ! type -p $2 &amp;&gt;/dev/null
+   then
+     echo "ERROR: Cannot find $2 ($1)"; return 1;
+   fi
+   v=$($2 --version 2&gt;&amp;1 | grep -E -o '[0-9]+\.[0-9\.]+[a-z]*' | head -n1)
+   if printf '%s\n' $3 $v | sort --version-sort --check &amp;&gt;/dev/null
+   then
+     printf "OK:    %-9s %-6s &gt;= $3\n" "$1" "$v"; return 0;
+   else
+     printf "ERROR: %-9s is TOO OLD ($3 or later required)\n" "$1";
+     return 1;
+   fi
+}
+
+ver_kernel()
+{
+   kver=$(uname -r | grep -E -o '^[0-9\.]+')
+   if printf '%s\n' $1 $kver | sort --version-sort --check &amp;&gt;/dev/null
+   then
+     printf "OK:    Linux Kernel $kver &gt;= $1\n"; return 0;
+   else
+     printf "ERROR: Linux Kernel ($kver) is TOO OLD ($1 or later required)\n" "$kver";
+     return 1;
+   fi
+}
+
+ver_check Coreutils      sort     8.1 || bail "Coreutils too old, stop"
+ver_check Bash           bash     3.2
+ver_check Binutils       ld       2.13.1
+ver_check Bison          bison    2.7
+ver_check Diffutils      diff     2.8.1
+ver_check Findutils      find     4.2.31
+ver_check Gawk           gawk     4.0.1
+ver_check GCC            gcc      5.4
+ver_check "GCC (C++)"    g++      5.4
+ver_check Grep           grep     2.5.1a
+ver_check Gzip           gzip     1.3.12
+ver_check M4             m4       1.4.10
+ver_check Make           make     4.0
+ver_check Patch          patch    2.5.4
+ver_check Perl           perl     5.8.8
+ver_check Python         python3  3.4
+ver_check Sed            sed      4.1.5
+ver_check Tar            tar      1.22
+ver_check Texinfo        texi2any 5.0
+ver_check Xz             xz       5.0.0
+ver_kernel 5.4
+
+if mount | grep -q 'devpts on /dev/pts' &amp;&amp; [ -e /dev/ptmx ]
+then echo "OK:    Linux Kernel supports UNIX 98 PTY";
+else echo "ERROR: Linux Kernel does NOT support UNIX 98 PTY"; fi
+
+alias_check() {
+   if $1 --version 2&gt;&amp;1 | grep -qi $2
+   then printf "OK:    %-4s is $2\n" "$1";
+   else printf "ERROR: %-4s is NOT $2\n" "$1"; fi
+}
+echo "Aliases:"
+alias_check awk GNU
+alias_check yacc Bison
+alias_check sh Bash
+
+echo "Compiler check:"
+if printf "int main(){}" | g++ -x c++ -
+then echo "OK:    g++ works";
+else echo "ERROR: g++ does NOT work"; fi
+rm -f a.out
+
+if [ "$(nproc)" = "" ]; then
+   echo "ERROR: nproc is not available or it produces empty output"
+else
+   echo "OK: nproc reports $(nproc) logical cores are available"
+fi
+EOF
+
+bash version-check.sh</kbd></pre>
+
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            Do not proceed if any line prints <code>ERROR:</code> or
+            <code>FATAL:</code>. Resolve the deficiency on your host before
+            continuing to the next chapter.
+          </p>
+        </div>
+
+        <h2 class="sect2">Installing Missing Dependencies</h2>
+        <p>
+          On Debian/Ubuntu-based hosts:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo apt-get install -y \
+    build-essential bison gawk texinfo xz-utils \
+    python3 m4 perl patch diffutils findutils \
+    gcc g++ make</kbd></pre>
+        <p>
+          On Fedora/RHEL-based hosts:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo dnf install -y \
+    gcc gcc-c++ make bison gawk texinfo xz \
+    python3 m4 perl patch diffutils findutils</kbd></pre>
+        <p>
+          On Arch Linux:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo pacman -S --needed \
+    base-devel bison gawk texinfo xz \
+    python m4 perl patch</kbd></pre>
+
+        <h2 class="sect2">Preparing the Mount Point</h2>
+        <p>
+          The build root lives at <code class="filename">/mnt/lfs-lite</code>.
+          If you are building on a dedicated partition, mount it now:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo mkdir -pv /mnt/lfs-lite
+sudo mount /dev/sdXY /mnt/lfs-lite</kbd></pre>
+        <p>
+          Replace <code>/dev/sdXY</code> with the actual partition device. If
+          you are building in a directory on the host filesystem, simply create
+          the directory:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo mkdir -pv /mnt/lfs-lite
+sudo chown $USER /mnt/lfs-lite</kbd></pre>
+      </div>
+
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="introduction.html" title="Introduction">Prev</a>
+          <p>Introduction</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="toolchain.html" title="Toolchain Validation">Next</a>
+          <p>Toolchain Validation</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

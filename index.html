@@ -1,0 +1,238 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>LFS-Lite — Building a Minimal Linux System From Source</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Title Page &amp; Table of Contents</h3>
+      <ul>
+        <li class="next">
+          <a accesskey="n" href="introduction.html" title="Introduction">Next</a>
+          <p>Introduction</p>
+        </li>
+      </ul>
+    </div>
+
+    <!-- ── Book cover ── -->
+    <div class="book-cover">
+      <h1>LFS-Lite</h1>
+      <p class="subtitle">Building a Minimal Linux System From Source</p>
+      <p class="version">Version 1.0</p>
+      <p class="author">The LFS-Lite Project</p>
+      <p class="version" style="margin-top:0.4rem;">License: Creative Commons Attribution-ShareAlike 4.0 International</p>
+      <p class="quote">
+        &ldquo;Tell me and I forget. Teach me and I remember. Involve me and I learn.&rdquo;<br/>
+        <em>— Benjamin Franklin</em>
+      </p>
+    </div>
+
+    <!-- ── Dedication / abstract ── -->
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          LFS-Lite is a guided, educational project that walks you through the
+          construction of a fully bootable, minimal Linux system assembled entirely
+          from source code. It draws direct inspiration from the
+          <em>Linux From Scratch</em> (LFS) project while pursuing a tighter scope:
+          the smallest viable system that can boot into a usable shell, equipped
+          with a minimal but coherent set of userspace tools.
+        </p>
+        <p>
+          The final system is built on <strong>musl libc</strong> instead of
+          glibc, uses <strong>BusyBox</strong> for the initramfs stage, boots
+          via <strong>GRUB</strong>, and is managed by a deliberately simple
+          shell-based <strong>PID 1 init</strong>. A custom installer script
+          automates deployment to a target disk.
+        </p>
+        <p>
+          Every package is compiled from source with realistic configure flags.
+          Nothing is hand-waved.
+        </p>
+      </div>
+
+      <!-- ── Table of contents ── -->
+      <h2 class="indexpage">Table of Contents</h2>
+
+      <div class="toc">
+        <h3>Preface</h3>
+        <ul>
+          <li><a href="introduction.html">Introduction</a></li>
+          <li><a href="requirements.html">Host System Requirements</a></li>
+          <li><a href="toolchain.html">Toolchain Validation</a></li>
+          <li><a href="architecture.html">System Architecture Overview</a></li>
+        </ul>
+      </div>
+
+      <div class="toc">
+        <h3>Part I — Building the System</h3>
+        <ul>
+          <li>
+            <a href="chapter01.html">Chapter 1. Preparing the Environment</a>
+            <ul>
+              <li><a href="chapter01.html#env-dirs">1.1. Setting Up the Build Directory</a></li>
+              <li><a href="chapter01.html#env-skeleton">1.2. Creating the Directory Skeleton</a></li>
+              <li><a href="chapter01.html#env-sources">1.3. Verifying Source Tarballs</a></li>
+              <li><a href="chapter01.html#env-log">1.4. Establishing a Build Log</a></li>
+              <li><a href="chapter01.html#env-symlinks">1.5. Creating Essential Symlinks</a></li>
+              <li><a href="chapter01.html#env-config">1.6. Creating Static Configuration Files</a></li>
+              <li><a href="chapter01.html#env-flags">1.7. Setting Build Flags</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter02.html">Chapter 2. Building musl libc</a>
+            <ul>
+              <li><a href="chapter02.html#musl-intro">2.1. Introduction to musl</a></li>
+              <li><a href="chapter02.html#musl-extract">2.2. Extracting the Source</a></li>
+              <li><a href="chapter02.html#musl-configure">2.3. Configuring musl</a></li>
+              <li><a href="chapter02.html#musl-compile">2.4. Compiling musl</a></li>
+              <li><a href="chapter02.html#musl-install">2.5. Installing musl</a></li>
+              <li><a href="chapter02.html#musl-wrapper">2.6. Creating the Dynamic Linker Wrapper</a></li>
+              <li><a href="chapter02.html#musl-verify">2.7. Verifying musl</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter03.html">Chapter 3. Building coreutils</a>
+            <ul>
+              <li><a href="chapter03.html#coreutils-intro">3.1. Introduction to GNU coreutils</a></li>
+              <li><a href="chapter03.html#coreutils-extract">3.2. Extracting the Source</a></li>
+              <li><a href="chapter03.html#coreutils-configure">3.3. Configuring coreutils</a></li>
+              <li><a href="chapter03.html#coreutils-compile">3.4. Compiling coreutils</a></li>
+              <li><a href="chapter03.html#coreutils-test">3.5. Running the Test Suite</a></li>
+              <li><a href="chapter03.html#coreutils-install">3.6. Installing coreutils</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter04.html">Chapter 4. Building bash</a>
+            <ul>
+              <li><a href="chapter04.html#bash-intro">4.1. Introduction to Bash</a></li>
+              <li><a href="chapter04.html#bash-extract">4.2. Extracting the Source</a></li>
+              <li><a href="chapter04.html#bash-configure">4.3. Configuring bash</a></li>
+              <li><a href="chapter04.html#bash-compile">4.4. Compiling bash</a></li>
+              <li><a href="chapter04.html#bash-install">4.5. Installing bash</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter05.html">Chapter 5. Building util-linux</a>
+            <ul>
+              <li><a href="chapter05.html#util-intro">5.1. Introduction to util-linux</a></li>
+              <li><a href="chapter05.html#util-headers">5.2. Installing Kernel Headers</a></li>
+              <li><a href="chapter05.html#util-extract">5.3. Extracting util-linux</a></li>
+              <li><a href="chapter05.html#util-configure">5.4. Configuring util-linux</a></li>
+              <li><a href="chapter05.html#util-compile">5.5. Compiling util-linux</a></li>
+              <li><a href="chapter05.html#util-install">5.6. Installing util-linux</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter06.html">Chapter 6. Building BusyBox for initramfs</a>
+            <ul>
+              <li><a href="chapter06.html#bb-intro">6.1. Introduction to BusyBox</a></li>
+              <li><a href="chapter06.html#bb-update">6.2. Updating the BusyBox Source</a></li>
+              <li><a href="chapter06.html#bb-configure">6.3. Configuring BusyBox</a></li>
+              <li><a href="chapter06.html#bb-compile">6.4. Compiling BusyBox</a></li>
+              <li><a href="chapter06.html#bb-install">6.5. Installing BusyBox for initramfs</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter07.html">Chapter 7. Linux Kernel Compilation</a>
+            <ul>
+              <li><a href="chapter07.html#kernel-intro">7.1. Introduction</a></li>
+              <li><a href="chapter07.html#kernel-extract">7.2. Extracting the Kernel Source</a></li>
+              <li><a href="chapter07.html#kernel-config">7.3. Kernel Configuration</a></li>
+              <li><a href="chapter07.html#kernel-compile">7.4. Compiling the Kernel</a></li>
+              <li><a href="chapter07.html#kernel-install">7.5. Installing the Kernel and Modules</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter08.html">Chapter 8. GRUB Setup</a>
+            <ul>
+              <li><a href="chapter08.html#grub-intro">8.1. Introduction to GRUB</a></li>
+              <li><a href="chapter08.html#grub-extract">8.2. Extracting the Source</a></li>
+              <li><a href="chapter08.html#grub-configure">8.3. Configuring GRUB</a></li>
+              <li><a href="chapter08.html#grub-compile">8.4. Compiling GRUB</a></li>
+              <li><a href="chapter08.html#grub-install">8.5. Installing GRUB</a></li>
+              <li><a href="chapter08.html#grub-cfg">8.6. GRUB Configuration File</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter09.html">Chapter 9. initramfs Creation</a>
+            <ul>
+              <li><a href="chapter09.html#initramfs-what">9.1. What is an initramfs?</a></li>
+              <li><a href="chapter09.html#initramfs-layout">9.2. initramfs Directory Structure</a></li>
+              <li><a href="chapter09.html#initramfs-devnodes">9.3. Creating Essential Device Nodes</a></li>
+              <li><a href="chapter09.html#initramfs-init">9.4. Writing the initramfs /init Script</a></li>
+              <li><a href="chapter09.html#initramfs-pack">9.5. Packaging the initramfs</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter10.html">Chapter 10. Custom Init System</a>
+            <ul>
+              <li><a href="chapter10.html#init-pid1">10.1. The Role of PID 1</a></li>
+              <li><a href="chapter10.html#init-script">10.2. Writing the Init Script</a></li>
+              <li><a href="chapter10.html#init-fstab">10.3. Creating /etc/fstab</a></li>
+              <li><a href="chapter10.html#init-rationale">10.4. Design Rationale</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter11.html">Chapter 11. Switching Root into the Final System</a>
+            <ul>
+              <li><a href="chapter11.html#switchroot-what">11.1. Understanding switch_root</a></li>
+              <li><a href="chapter11.html#switchroot-verify">11.2. Verifying the Final Root Filesystem</a></li>
+              <li><a href="chapter11.html#switchroot-chroot">11.3. Chroot Testing</a></li>
+            </ul>
+          </li>
+          <li>
+            <a href="chapter12.html">Chapter 12. Custom Installer Script</a>
+            <ul>
+              <li><a href="chapter12.html#installer-intro">12.1. Introduction</a></li>
+              <li><a href="chapter12.html#installer-warning">12.2. Safety Warning</a></li>
+              <li><a href="chapter12.html#installer-script">12.3. Writing the Installer Script</a></li>
+              <li><a href="chapter12.html#installer-run">12.4. Running the Installer</a></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+
+      <div class="toc">
+        <h3>Part II — Reference</h3>
+        <ul>
+          <li><a href="bootprocess.html">Final Boot Process Explanation</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          <li><a href="appendix.html">Appendix</a></li>
+        </ul>
+      </div>
+
+      <!-- ── Package summary ── -->
+      <h2 class="indexpage">Packages Used in This Book</h2>
+      <div class="segmentedlist" style="flex-direction:column; gap:0.3rem;">
+        <div class="seg"><strong class="segtitle">musl libc:</strong> <span class="segbody">1.2.6 — musl-1.2.6.tar.gz</span></div>
+        <div class="seg"><strong class="segtitle">coreutils:</strong> <span class="segbody">9.11 — coreutils-9.11.tar.xz</span></div>
+        <div class="seg"><strong class="segtitle">bash:</strong> <span class="segbody">5.3 — bash-5.3.tar.gz</span></div>
+        <div class="seg"><strong class="segtitle">util-linux:</strong> <span class="segbody">2.42 — util-linux-2.42.tar.xz</span></div>
+        <div class="seg"><strong class="segtitle">BusyBox:</strong> <span class="segbody">git HEAD — cloned from git.busybox.net/busybox</span></div>
+        <div class="seg"><strong class="segtitle">Linux kernel:</strong> <span class="segbody">7.1.2 — linux-7.1.2.tar.xz</span></div>
+        <div class="seg"><strong class="segtitle">GRUB:</strong> <span class="segbody">2.14 — grub-2.14.tar.xz</span></div>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="next">
+          <a accesskey="n" href="introduction.html" title="Introduction">Next</a>
+          <p>Introduction</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

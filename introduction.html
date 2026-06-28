@@ -1,0 +1,203 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Introduction — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Preface</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="index.html" title="Table of Contents">Prev</a>
+          <p>Table of Contents</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="requirements.html" title="Host System Requirements">Next</a>
+          <p>Host System Requirements</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Introduction</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+
+      <div class="package">
+        <h2 class="sect2">What is LFS-Lite?</h2>
+        <p>
+          LFS-Lite is a guided, educational project that walks you through the
+          construction of a fully bootable, minimal Linux system assembled
+          entirely from source code. It draws direct inspiration from the
+          <em>Linux From Scratch</em> (LFS) project, which has served as one
+          of the most enduring and respected resources in the Linux education
+          community. Where LFS emphasises completeness and adherence to the
+          Filesystem Hierarchy Standard (FHS) for a general-purpose system,
+          LFS-Lite pursues a different goal: the smallest viable system that
+          can boot into a usable shell, equipped with a minimal but coherent
+          set of userspace tools.
+        </p>
+        <p>
+          This book does not compromise on rigour. Every package is compiled
+          from source, every configure flag is explained, and every design
+          decision is justified. The reader is expected to engage critically
+          with the material rather than simply copy and paste commands.
+        </p>
+      </div>
+
+      <div class="installation">
+        <h2 class="sect2">Why Does LFS-Lite Exist?</h2>
+        <p>
+          The canonical Linux From Scratch book is excellent, but it is also
+          large. For a reader who wants to understand the Linux system
+          construction process without navigating hundreds of pages and dozens
+          of packages, the learning curve can feel steep. LFS-Lite occupies the
+          space between &ldquo;just install a distro&rdquo; and &ldquo;build a
+          full LFS system.&rdquo;
+        </p>
+        <p>
+          Additionally, LFS-Lite makes an intentional architectural choice that
+          the original LFS does not: it uses <strong>musl libc</strong> instead
+          of glibc. musl is a modern, clean-room implementation of the C
+          standard library. It is small, auditable, and produces statically
+          linked binaries that are highly portable. This choice simplifies the
+          build considerably and produces a leaner final system.
+        </p>
+        <p>
+          LFS-Lite also introduces the reader to:
+        </p>
+        <ul>
+          <li><strong>initramfs design</strong>: how the kernel transitions from
+          compressed archive to mounted root filesystem.</li>
+          <li><strong>BusyBox</strong>: a multi-call binary that provides an
+          entire POSIX environment in a single executable.</li>
+          <li><strong>PID 1 design</strong>: what an init system actually does
+          at the lowest level.</li>
+          <li><strong>GRUB</strong>: how the bootloader locates and loads the
+          kernel.</li>
+          <li><strong>A custom installer</strong>: how a Linux distribution
+          installs itself to a target disk.</li>
+        </ul>
+      </div>
+
+      <div class="content">
+        <h2 class="sect2">What You Will Build</h2>
+        <p>
+          By the end of this book, you will have constructed a system that:
+        </p>
+        <ol>
+          <li>Boots from GRUB.</li>
+          <li>Loads an initramfs built from BusyBox.</li>
+          <li>Performs early userspace initialisation.</li>
+          <li>Pivots into a root filesystem containing musl libc, bash,
+          coreutils, and util-linux.</li>
+          <li>Runs a minimal PID&nbsp;1 init system.</li>
+          <li>Can install itself to a target disk using a shell script.</li>
+        </ol>
+        <p>
+          This system is not intended for production use. It is a learning
+          artefact: a system you understand completely because you built every
+          part of it.
+        </p>
+
+        <h2 class="sect2">Prerequisites</h2>
+        <p>
+          This book assumes the reader:
+        </p>
+        <ul>
+          <li>Is comfortable with a Linux command line.</li>
+          <li>Understands basic shell scripting.</li>
+          <li>Has some familiarity with the C compilation toolchain.</li>
+          <li>Has read about, but not necessarily built, a full LFS system.</li>
+        </ul>
+        <p>
+          You do not need to be an expert. You do need to be patient and
+          methodical.
+        </p>
+
+        <h2 class="sect2">A Note on Paths</h2>
+        <p>
+          All build activity in this book takes place under
+          <code class="filename">/mnt/lfs-lite</code>. This mirrors the
+          convention used by the official LFS book, where the build root is
+          placed at <code class="filename">/mnt/lfs</code>. Using a path under
+          <code class="filename">/mnt</code> keeps the build tree separate from
+          the host system and makes it straightforward to work on an external
+          disk or a dedicated partition.
+        </p>
+        <p>
+          The environment variable <code>$LFS</code> is set to
+          <code class="filename">/mnt/lfs-lite</code> throughout this book.
+          Every path in build commands is expressed relative to this variable.
+          Whenever you open a new terminal session, re-source your
+          <code class="filename">~/.bashrc</code> or manually export
+          <code>LFS</code> to ensure the variable is present.
+        </p>
+
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            The build steps in this book are designed to be followed in order.
+            Each chapter depends on the results of the previous one. Skipping
+            a chapter or installing packages out of order will produce a broken
+            system.
+          </p>
+        </div>
+
+        <h2 class="sect2">Conventions Used in This Book</h2>
+        <p>
+          Commands that must be executed in a terminal are presented in dark
+          boxes:
+        </p>
+        <pre class="userinput"><kbd class="command">./configure --prefix=/usr \
+    --enable-shared</kbd></pre>
+        <p>
+          Inline references to filenames, paths, and flags use
+          <code class="filename">monospace</code> text. Important terms
+          are introduced in <em>italics</em>. Package and program names are
+          set in <strong>bold</strong> on first use.
+        </p>
+        <p>
+          Notes that contain supplementary information appear in blue boxes.
+          Warnings that describe potentially destructive operations appear in
+          orange boxes.
+        </p>
+        <div class="admon warn">
+          <h3>Warning</h3>
+          <p>
+            Commands marked with warning boxes may overwrite data, partition
+            disks, or make irreversible changes to your system. Read them
+            carefully before executing.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="index.html" title="Table of Contents">Prev</a>
+          <p>Table of Contents</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="requirements.html" title="Host System Requirements">Next</a>
+          <p>Host System Requirements</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

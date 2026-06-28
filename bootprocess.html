@@ -1,0 +1,229 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Final Boot Process Explanation — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part II. Reference</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter12.html" title="Chapter 12. Custom Installer Script">Prev</a>
+          <p>Chapter 12. Custom Installer Script</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="troubleshooting.html" title="Troubleshooting">Next</a>
+          <p>Troubleshooting</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Final Boot Process Explanation</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          Understanding the boot process end-to-end consolidates the
+          knowledge from all preceding chapters. Every component built
+          in this book plays a specific, non-overlapping role in the sequence
+          from power-on to interactive shell. This chapter traces that
+          sequence in full.
+        </p>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2">Stage 1 — Firmware (BIOS/UEFI)</h2>
+        <p>
+          When the system is powered on, the firmware (BIOS or UEFI)
+          initialises hardware: the CPU is brought to a known state, memory
+          is tested and mapped, and PCIe buses are enumerated. The firmware
+          then reads the first 512 bytes of the designated boot disk — the
+          Master Boot Record (MBR). The MBR contains the first-stage GRUB
+          bootloader code and the partition table. Control is transferred
+          to the first-stage code.
+        </p>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            On UEFI systems the boot process differs: the firmware reads
+            an EFI System Partition (ESP) and executes a
+            <code class="filename">.efi</code> application directly.
+            LFS-Lite's installer targets BIOS/MBR for simplicity.
+            UEFI support would require <code>grub-install --target=x86_64-efi</code>
+            and a FAT32 ESP partition.
+          </p>
+        </div>
+
+        <h2 class="sect2">Stage 2 — GRUB Stage 1 (MBR Code)</h2>
+        <p>
+          The GRUB first stage fits in 446 bytes (the MBR minus the
+          partition table and boot signature). Its only capability is to
+          locate and load GRUB's second stage, stored in the sectors between
+          the MBR and the first partition — the &ldquo;boot gap&rdquo; or
+          embedded GRUB core image.
+        </p>
+
+        <h2 class="sect2">Stage 3 — GRUB Stage 2 (/boot/grub/)</h2>
+        <p>
+          GRUB's second stage has a full ext2/ext4 filesystem driver and
+          can read <code class="filename">/boot/grub/grub.cfg</code>. It:
+        </p>
+        <ol>
+          <li>Displays the boot menu and waits for the configured timeout
+          (5 seconds by default).</li>
+          <li>Reads <code class="filename">vmlinuz-7.1.2</code> from the
+          boot partition into RAM.</li>
+          <li>Reads <code class="filename">initramfs.cpio.gz</code> from
+          the boot partition into RAM.</li>
+          <li>Passes the kernel command line
+          (<code>root=UUID=... rw quiet</code>) to the kernel.</li>
+          <li>Jumps to the kernel's entry point.</li>
+        </ol>
+        <p>
+          The <code>search --fs-uuid</code> directive in
+          <code class="filename">grub.cfg</code> allows GRUB to locate the
+          boot partition by its UUID regardless of disk device ordering —
+          a system with multiple disks will boot correctly even if the disk
+          enumeration order changes between reboots.
+        </p>
+
+        <h2 class="sect2">Stage 4 — Kernel Initialisation</h2>
+        <p>
+          The kernel decompresses itself (the <code class="filename">bzImage</code>
+          format contains a self-decompressing stub), then:
+        </p>
+        <ol>
+          <li>Initialises the memory management subsystem and sets up
+          virtual memory.</li>
+          <li>Initialises the CPU (sets up GDT, IDT, paging).</li>
+          <li>Scans and initialises hardware via the compiled-in drivers
+          (<code>CONFIG_ATA</code>, <code>CONFIG_VIRTIO_BLK</code>,
+          etc.).</li>
+          <li>Sets up <code class="filename">/dev</code> via devtmpfs
+          (<code>CONFIG_DEVTMPFS_MOUNT</code>).</li>
+          <li>Extracts the initramfs cpio archive into a tmpfs and mounts
+          it as the initial root.</li>
+          <li>Executes <code class="filename">/sbin/init</code> from the
+          initramfs as PID&nbsp;1.</li>
+        </ol>
+
+        <h2 class="sect2">Stage 5 — initramfs /sbin/init (BusyBox)</h2>
+        <p>
+          The BusyBox-based <code class="filename">/sbin/init</code> script
+          from <a href="chapter09.html">Chapter&nbsp;9</a> runs:
+        </p>
+        <ol>
+          <li>Mounts <code class="filename">/proc</code>,
+          <code class="filename">/sys</code>,
+          <code class="filename">/dev</code> inside the initramfs.</li>
+          <li>Reads <code class="filename">/proc/cmdline</code> to extract
+          the <code>root=</code> parameter.</li>
+          <li>Polls for the root block device to appear (up to 10 seconds,
+          handling asynchronous driver initialisation).</li>
+          <li>Mounts the real root partition at
+          <code class="filename">/mnt/root</code>.</li>
+          <li>Moves virtual filesystem mounts into
+          <code class="filename">/mnt/root</code> so they are available
+          after the pivot.</li>
+          <li>Calls <code class="command">switch_root /mnt/root /sbin/init</code>.</li>
+        </ol>
+
+        <h2 class="sect2">Stage 6 — switch_root</h2>
+        <p>
+          <code class="command">switch_root</code> performs:
+        </p>
+        <ol>
+          <li>Recursively deletes all files in the current (initramfs) root,
+          freeing RAM.</li>
+          <li><code>pivot_root</code> into <code class="filename">/mnt/root</code>.</li>
+          <li><code>chroot</code> into the new root.</li>
+          <li><code>exec</code> the specified binary
+          (<code class="filename">/sbin/init</code>) as PID&nbsp;1.</li>
+        </ol>
+        <p>
+          After this call, the initramfs is gone. The kernel's root is now
+          the ext4 partition on disk. PID&nbsp;1 is now the bash-based init
+          script from <a href="chapter10.html">Chapter&nbsp;10</a>.
+        </p>
+
+        <h2 class="sect2">Stage 7 — LFS-Lite /sbin/init (bash)</h2>
+        <p>
+          The bash init script runs:
+        </p>
+        <ol>
+          <li>Sets the hostname from
+          <code class="filename">/etc/hostname</code>.</li>
+          <li>Verifies and mounts <code class="filename">/proc</code>,
+          <code class="filename">/sys</code>,
+          <code class="filename">/dev</code> (already mounted by initramfs
+          via <code>mount --move</code>).</li>
+          <li>Mounts <code class="filename">/dev/pts</code> and
+          <code class="filename">/tmp</code>.</li>
+          <li>Runs <code class="command">mount -a</code> to process
+          <code class="filename">/etc/fstab</code>.</li>
+          <li>Brings up the loopback network interface.</li>
+          <li>Enters the shell restart loop — starts a bash login shell
+          on <code class="filename">/dev/console</code>.</li>
+        </ol>
+
+        <h2 class="sect2">Stage 8 — Interactive Shell</h2>
+        <p>
+          Bash presents a prompt. The full userspace is available:
+          <code class="command">ls</code>, <code class="command">cp</code>,
+          <code class="command">mount</code>, <code class="command">fdisk</code>,
+          <code class="command">dmesg</code>, and all other tools built
+          throughout this book.
+        </p>
+        <p>
+          The system is fully booted.
+        </p>
+
+        <h2 class="sect2">Boot Timing Reference</h2>
+        <table class="compat">
+          <tr><th>Stage</th><th>Typical Duration</th></tr>
+          <tr><td>Firmware POST</td><td>1–3 seconds</td></tr>
+          <tr><td>GRUB (including timeout)</td><td>5 seconds</td></tr>
+          <tr><td>Kernel initialisation</td><td>0.5–2 seconds</td></tr>
+          <tr><td>initramfs</td><td>&lt; 1 second</td></tr>
+          <tr><td>Final init</td><td>&lt; 1 second</td></tr>
+          <tr><td><strong>Total</strong></td><td><strong>~8–12 seconds</strong></td></tr>
+        </table>
+        <p>
+          The 5-second GRUB timeout dominates. Set
+          <code>set timeout=0</code> in
+          <code class="filename">grub.cfg</code> to eliminate it for
+          faster development cycles.
+        </p>
+
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter12.html" title="Chapter 12. Custom Installer Script">Prev</a>
+          <p>Chapter 12. Custom Installer Script</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="troubleshooting.html" title="Troubleshooting">Next</a>
+          <p>Troubleshooting</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

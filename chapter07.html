@@ -1,0 +1,200 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 7. Linux Kernel Compilation — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter06.html" title="Chapter 6. Building BusyBox">Prev</a>
+          <p>Chapter 6. Building BusyBox</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter08.html" title="Chapter 8. GRUB Setup">Next</a>
+          <p>Chapter 8. GRUB Setup</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;7. Linux Kernel Compilation</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          The Linux kernel is the core of the operating system. It manages
+          hardware resources, provides the system call interface that userspace
+          programs use, and handles process scheduling, memory management, and
+          device I/O. Everything else in LFS-Lite runs on top of the kernel.
+        </p>
+        <p>
+          Kernel compilation is the most time-consuming step in this book.
+          The kernel has thousands of configuration options; this chapter
+          presents a minimal but functional configuration for x86_64 systems
+          and QEMU virtual machines.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate build time:</strong>
+            <span class="segbody">15–60 minutes (hardware dependent)</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Required disk space:</strong>
+            <span class="segbody">~1.5 GB</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Source tarball:</strong>
+            <span class="segbody">linux-7.1.2.tar.xz</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="kernel-intro" name="kernel-intro"></a>7.1. Introduction</h2>
+        <p>
+          The compiled kernel consists of three primary outputs:
+        </p>
+        <ul>
+          <li><code class="filename">arch/x86/boot/bzImage</code> — the
+          compressed, bootable kernel image. GRUB loads this file.</li>
+          <li><code class="filename">System.map</code> — the kernel symbol
+          table. Not required to boot, but invaluable for diagnosing kernel
+          panics.</li>
+          <li><code class="filename">lib/modules/7.1.2/</code> — compiled
+          kernel modules. Loadable modules allow the kernel to support
+          hardware not compiled in, without recompiling the entire kernel.</li>
+        </ul>
+
+        <h2 class="sect2"><a id="kernel-extract" name="kernel-extract"></a>7.2. Extracting the Kernel Source</h2>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            If you already extracted the kernel source in
+            <a href="chapter05.html#util-headers">Section&nbsp;5.2</a>
+            to install kernel headers, the directory
+            <code class="filename">$LFS_SOURCES/linux-7.1.2</code> already
+            exists. Skip the extraction and proceed directly to
+            <code class="command">make mrproper</code>.
+          </p>
+        </div>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
+tar -xJf linux-7.1.2.tar.xz
+cd linux-7.1.2
+
+make mrproper</kbd></pre>
+
+        <h2 class="sect2"><a id="kernel-config" name="kernel-config"></a>7.3. Kernel Configuration</h2>
+        <p>
+          Begin with the x86_64 default configuration:
+        </p>
+        <pre class="userinput"><kbd class="command">make x86_64_defconfig</kbd></pre>
+        <p>
+          Then apply the options required for initramfs support, the
+          filesystems LFS-Lite uses, and VirtIO devices for QEMU:
+        </p>
+        <pre class="userinput"><kbd class="command">scripts/config --enable  CONFIG_BLK_DEV_INITRD
+scripts/config --enable  CONFIG_TMPFS
+scripts/config --enable  CONFIG_DEVTMPFS
+scripts/config --enable  CONFIG_DEVTMPFS_MOUNT
+scripts/config --enable  CONFIG_EXT4_FS
+scripts/config --enable  CONFIG_VIRTIO_BLK
+scripts/config --enable  CONFIG_VIRTIO_PCI
+scripts/config --enable  CONFIG_VIRTIO_NET
+scripts/config --enable  CONFIG_ATA
+scripts/config --enable  CONFIG_ATA_PIIX
+scripts/config --set-str CONFIG_DEFAULT_HOSTNAME "lfslite"</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>The meaning of critical kernel options:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>CONFIG_BLK_DEV_INITRD</code></em></span></dt>
+            <dd><p>Support for loading an initial RAM disk/filesystem.
+            <strong>Required</strong> for LFS-Lite's two-stage boot
+            model.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>CONFIG_DEVTMPFS + CONFIG_DEVTMPFS_MOUNT</code></em></span></dt>
+            <dd><p>Causes the kernel to auto-populate and auto-mount
+            <code class="filename">/dev</code> early in boot. Greatly
+            simplifies the initramfs init script.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>CONFIG_EXT4_FS</code></em></span></dt>
+            <dd><p>ext4 filesystem support — used for both the
+            <code class="filename">/boot</code> and root partitions.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>CONFIG_VIRTIO_BLK / CONFIG_VIRTIO_PCI</code></em></span></dt>
+            <dd><p>Required for disk access and PCI bus emulation in QEMU
+            with VirtIO. Without these, a QEMU VM cannot see its disk.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>CONFIG_ATA + CONFIG_ATA_PIIX</code></em></span></dt>
+            <dd><p>IDE/SATA driver for bare-metal hardware. Covers most
+            SATA controllers found in consumer systems.</p></dd>
+          </dl>
+        </div>
+        <p>
+          For interactive configuration, run
+          <code class="command">make menuconfig</code> after applying the
+          above options. Verify each setting is correct before proceeding.
+        </p>
+
+        <h2 class="sect2"><a id="kernel-compile" name="kernel-compile"></a>7.4. Compiling the Kernel</h2>
+        <pre class="userinput"><kbd class="command">make -j${JOBS}</kbd></pre>
+        <div class="admon warn">
+          <h3>Warning</h3>
+          <p>
+            Kernel compilation is the most resource-intensive step in this
+            book. On an 8-core machine with <code>-j8</code>, expect 15 to
+            45 minutes. On a 4-core machine, budget an hour. Watch for
+            errors — the kernel build system is noisy but errors are clearly
+            indicated with <code>ERROR</code> or <code>FAILED</code> lines.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="kernel-install" name="kernel-install"></a>7.5. Installing the Kernel and Modules</h2>
+        <p>
+          Install the kernel image, System.map, and modules:
+        </p>
+        <pre class="userinput"><kbd class="command">mkdir -pv $LFS_ROOT/boot
+
+cp -v arch/x86/boot/bzImage $LFS_ROOT/boot/vmlinuz-7.1.2
+cp -v System.map            $LFS_ROOT/boot/System.map-7.1.2
+
+make modules_install INSTALL_MOD_PATH=$LFS_ROOT</kbd></pre>
+        <p>Verify:</p>
+        <pre class="userinput"><kbd class="command">ls -lh $LFS_ROOT/boot/vmlinuz-7.1.2
+ls $LFS_ROOT/lib/modules/</kbd></pre>
+        <p>
+          A typical LFS-Lite kernel image (<code class="filename">bzImage</code>)
+          is 8–12&nbsp;MB compressed. If it is significantly smaller, a
+          required option may have been left disabled. If it is much larger
+          than 20&nbsp;MB, the default configuration has included many drivers
+          that can be trimmed with <code class="command">make menuconfig</code>
+          for a leaner result.
+        </p>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter06.html" title="Chapter 6. Building BusyBox">Prev</a>
+          <p>Chapter 6. Building BusyBox</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter08.html" title="Chapter 8. GRUB Setup">Next</a>
+          <p>Chapter 8. GRUB Setup</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

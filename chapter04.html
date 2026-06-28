@@ -1,0 +1,175 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 4. Building bash — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter03.html" title="Chapter 3. Building coreutils">Prev</a>
+          <p>Chapter 3. Building coreutils</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter05.html" title="Chapter 5. Building util-linux">Next</a>
+          <p>Chapter 5. Building util-linux</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;4. Building bash</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          The Bourne Again SHell (Bash) is the default interactive shell and
+          scripting language for the vast majority of Linux systems. It is the
+          shell that users interact with directly and the interpreter for the
+          init scripts, installer, and other shell-based components in
+          LFS-Lite. Without bash, the system has no interactive interface and
+          no scripting capability.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate build time:</strong>
+            <span class="segbody">3–6 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Required disk space:</strong>
+            <span class="segbody">~60 MB</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Source tarball:</strong>
+            <span class="segbody">bash-5.3.tar.gz</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+        <h2 class="sect2"><a id="bash-intro" name="bash-intro"></a>4.1. Introduction to Bash</h2>
+        <p>
+          Bash 5.3 is a feature-complete, POSIX-conformant shell with
+          extensions for interactive use (command history, job control,
+          tab completion) and scripting (arrays, arithmetic, process
+          substitution). It depends on:
+        </p>
+        <ul>
+          <li>A C standard library — provided by musl.</li>
+          <li>The <code>readline</code> library for command-line editing.
+          bash bundles its own copy, which we will use to avoid an
+          external dependency.</li>
+        </ul>
+
+        <h2 class="sect2"><a id="bash-extract" name="bash-extract"></a>4.2. Extracting the Source</h2>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
+tar -xzf bash-5.3.tar.gz
+cd bash-5.3</kbd></pre>
+
+        <h2 class="sect2"><a id="bash-configure" name="bash-configure"></a>4.3. Configuring bash</h2>
+        <pre class="userinput"><kbd class="command">./configure \
+    --prefix=/usr \
+    --host=x86_64-linux-musl \
+    --build=$(support/config.guess) \
+    --without-bash-malloc \
+    --with-installed-readline=no \
+    --enable-static-link \
+    CC="$LFS_TOOLS/musl-gcc" \
+    CFLAGS="-O2 -pipe" \
+    LDFLAGS="-static"</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>The meaning of the configure options:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>--without-bash-malloc</code></em></span></dt>
+            <dd><p>Disables bash's custom memory allocator and uses the one
+            provided by musl instead. Bash's allocator is a historical
+            optimisation that predates modern libc allocators; musl's
+            implementation is superior for our purposes.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--with-installed-readline=no</code></em></span></dt>
+            <dd><p>Uses bash's bundled readline copy rather than searching for
+            a system readline library. This avoids a potential dependency on
+            the host system's readline headers and ensures a self-contained
+            build.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--enable-static-link</code></em></span></dt>
+            <dd><p>Instructs bash's build system to produce a statically linked
+            binary. The resulting bash carries musl libc inside it and works
+            correctly before the dynamic linker is operational — important for
+            early-boot init scripts.</p></dd>
+          </dl>
+        </div>
+
+        <h2 class="sect2"><a id="bash-compile" name="bash-compile"></a>4.4. Compiling bash</h2>
+        <pre class="userinput"><kbd class="command">make -j${JOBS}</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            Bash's build is not as parallelisable as coreutils — many of its
+            sub-components have serial dependencies. Expect the build to take
+            longer per-core than previous packages.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="bash-install" name="bash-install"></a>4.5. Installing bash</h2>
+        <pre class="userinput"><kbd class="command">make DESTDIR=$LFS_ROOT install</kbd></pre>
+        <p>
+          Create the traditional <code class="filename">/bin/sh</code> and
+          <code class="filename">/usr/bin/sh</code> symlinks:
+        </p>
+        <pre class="userinput"><kbd class="command">ln -sfv bash $LFS_ROOT/usr/bin/sh</kbd></pre>
+        <p>
+          Because <code class="filename">$LFS_ROOT/bin</code> is already a
+          symlink to <code class="filename">usr/bin</code>, this also provides
+          <code class="filename">/bin/sh</code> in the final system without
+          any additional steps.
+        </p>
+        <p>Verify the installation:</p>
+        <pre class="userinput"><kbd class="command">file $LFS_ROOT/usr/bin/bash
+ls -la $LFS_ROOT/usr/bin/sh</kbd></pre>
+        <p>
+          The <code class="command">file</code> output should confirm
+          the binary is statically linked. The symlink should point to
+          <code class="filename">bash</code>.
+        </p>
+
+        <div class="admon note">
+          <h3>Note on Static Linking and Shell Scripts</h3>
+          <p>
+            At 2–4&nbsp;MB, a statically linked bash is entirely acceptable
+            for a minimal system. The benefit is significant: bash will work
+            correctly in environments where the dynamic linker is not yet
+            operational — including the initramfs stage and the earliest
+            moments of the final init script, before
+            <code class="filename">/lib64</code> is accessible.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter03.html" title="Chapter 3. Building coreutils">Prev</a>
+          <p>Chapter 3. Building coreutils</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter05.html" title="Chapter 5. Building util-linux">Next</a>
+          <p>Chapter 5. Building util-linux</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

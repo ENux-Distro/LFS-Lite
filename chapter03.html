@@ -1,0 +1,194 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 3. Building coreutils — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter02.html" title="Chapter 2. Building musl libc">Prev</a>
+          <p>Chapter 2. Building musl libc</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter04.html" title="Chapter 4. Building bash">Next</a>
+          <p>Chapter 4. Building bash</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;3. Building coreutils</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          GNU coreutils is the foundational userspace package on any GNU/Linux
+          system. It provides the essential file, text, and shell utilities
+          that every other piece of software assumes to be present:
+          <code class="command">ls</code>, <code class="command">cp</code>,
+          <code class="command">mv</code>, <code class="command">rm</code>,
+          <code class="command">cat</code>, <code class="command">echo</code>,
+          <code class="command">sort</code>, <code class="command">wc</code>,
+          <code class="command">chmod</code>, <code class="command">chown</code>,
+          <code class="command">mkdir</code>, <code class="command">ln</code>,
+          and many others.
+        </p>
+        <p>
+          Without coreutils, a system is functionally unusable. It is built
+          immediately after musl because it has no dependencies beyond the C
+          standard library.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate build time:</strong>
+            <span class="segbody">2–5 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Required disk space:</strong>
+            <span class="segbody">~180 MB</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Source tarball:</strong>
+            <span class="segbody">coreutils-9.11.tar.xz</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+        <h2 class="sect2"><a id="coreutils-intro" name="coreutils-intro"></a>3.1. Introduction to GNU coreutils</h2>
+        <p>
+          coreutils 9.11 is a major release of the GNU coreutils package.
+          Among the tools it provides are the implementations of
+          <code class="command">ls</code>, <code class="command">cp</code>,
+          <code class="command">mv</code>, <code class="command">cat</code>,
+          <code class="command">sort</code>, <code class="command">uniq</code>,
+          <code class="command">wc</code>, <code class="command">head</code>,
+          <code class="command">tail</code>, <code class="command">chmod</code>,
+          <code class="command">chown</code>, <code class="command">ln</code>,
+          <code class="command">mkdir</code>, <code class="command">rm</code>,
+          <code class="command">date</code>, <code class="command">echo</code>,
+          <code class="command">printf</code>, <code class="command">test</code>,
+          and many more. These are the primitives on which shell scripts and
+          interactive sessions depend.
+        </p>
+
+        <h2 class="sect2"><a id="coreutils-extract" name="coreutils-extract"></a>3.2. Extracting the Source</h2>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
+tar -xJf coreutils-9.11.tar.xz
+cd coreutils-9.11</kbd></pre>
+
+        <h2 class="sect2"><a id="coreutils-configure" name="coreutils-configure"></a>3.3. Configuring coreutils</h2>
+        <pre class="userinput"><kbd class="command">./configure \
+    --prefix=/usr \
+    --host=x86_64-linux-musl \
+    --build=$(build-aux/config.guess) \
+    --enable-no-install-program=kill,uptime \
+    CC="$LFS_TOOLS/musl-gcc" \
+    CFLAGS="-O2 -pipe" \
+    LDFLAGS="-static"</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>The meaning of the configure options:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>--prefix=/usr</code></em></span></dt>
+            <dd><p>Standard prefix for the final system.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--host=x86_64-linux-musl</code></em></span></dt>
+            <dd><p>Declares that the binaries will run on an x86_64 system
+            using musl. This signals to the configure system that the C
+            library is musl rather than glibc, enabling appropriate
+            compatibility handling.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--build=$(build-aux/config.guess)</code></em></span></dt>
+            <dd><p>Auto-detects the build machine's triple. Must be stated
+            explicitly when <code>--host</code> differs from the build
+            machine.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--enable-no-install-program=kill,uptime</code></em></span></dt>
+            <dd><p>Excludes <code class="command">kill</code> and
+            <code class="command">uptime</code>, which are provided by
+            util-linux in forms better suited to the target system.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>LDFLAGS="-static"</code></em></span></dt>
+            <dd><p>Links all coreutils binaries statically against musl. The
+            resulting binaries have no shared library runtime dependencies
+            and work correctly before the dynamic linker is available.</p></dd>
+          </dl>
+        </div>
+
+        <h2 class="sect2"><a id="coreutils-compile" name="coreutils-compile"></a>3.4. Compiling coreutils</h2>
+        <pre class="userinput"><kbd class="command">make -j${JOBS}</kbd></pre>
+        <p>
+          coreutils is a large package. Expect this to take two to five minutes
+          depending on hardware. The build is highly parallelisable and benefits
+          significantly from multiple cores.
+        </p>
+
+        <h2 class="sect2"><a id="coreutils-test" name="coreutils-test"></a>3.5. Running the Test Suite</h2>
+        <p>
+          coreutils includes a comprehensive test suite. Running it is strongly
+          recommended:
+        </p>
+        <pre class="userinput"><kbd class="command">make check</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            A small number of tests may fail due to host environment
+            differences — for example, tests requiring
+            <code>root</code> privileges for certain permission operations.
+            These are benign. Failures in tests for core utilities such as
+            <code class="command">cp</code>, <code class="command">mv</code>,
+            or <code class="command">sort</code> are not benign and must be
+            investigated before proceeding.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="coreutils-install" name="coreutils-install"></a>3.6. Installing coreutils</h2>
+        <pre class="userinput"><kbd class="command">make DESTDIR=$LFS_ROOT install</kbd></pre>
+        <p>Verify that the key binaries are present and statically linked:</p>
+        <pre class="userinput"><kbd class="command">ls $LFS_ROOT/usr/bin/ls
+ls $LFS_ROOT/usr/bin/cp
+ls $LFS_ROOT/usr/bin/cat
+file $LFS_ROOT/usr/bin/ls</kbd></pre>
+        <p>
+          The <code class="command">file</code> command should report:
+        </p>
+        <pre class="userinput"><kbd class="command">…/usr/bin/ls: ELF 64-bit LSB executable, x86-64, statically linked, …</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            Because <code class="filename">$LFS_ROOT/bin</code> is a symlink
+            to <code class="filename">usr/bin</code> (created in
+            <a href="chapter01.html#env-symlinks">Section&nbsp;1.5</a>),
+            <code class="filename">/bin/ls</code> and
+            <code class="filename">/usr/bin/ls</code> in the final system
+            refer to the same file without any duplication.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter02.html" title="Chapter 2. Building musl libc">Prev</a>
+          <p>Chapter 2. Building musl libc</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter04.html" title="Chapter 4. Building bash">Next</a>
+          <p>Chapter 4. Building bash</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

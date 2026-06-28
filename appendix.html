@@ -1,0 +1,249 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Appendix — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part II. Reference</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="troubleshooting.html" title="Troubleshooting">Prev</a>
+          <p>Troubleshooting</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Appendix</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          This appendix collects quick-reference material used throughout
+          the book: command summaries, flag meanings, package version
+          tables, kernel option references, and comparisons between the
+          key technical choices made in LFS-Lite.
+        </p>
+      </div>
+
+      <div class="installation">
+
+        <!-- ── A: Commands ── -->
+        <h2 class="sect2">Appendix A — Essential Command Reference</h2>
+
+        <h3>Source Extraction</h3>
+        <pre class="userinput"><kbd class="command">tar -xzf package.tar.gz      # gzip-compressed
+tar -xJf package.tar.xz      # xz-compressed
+tar -xjf package.tar.bz2     # bzip2-compressed</kbd></pre>
+
+        <h3>Standard Build Sequence</h3>
+        <pre class="userinput"><kbd class="command">./configure [options]
+make -j$(nproc)
+make check           # optional but strongly recommended
+make DESTDIR=$LFS_ROOT install</kbd></pre>
+
+        <h3>initramfs Operations</h3>
+        <pre class="userinput"><kbd class="command"># Create a gzipped cpio archive from a staging directory
+find $INITRAMFS | cpio --create --format=newc | gzip -9 &gt; initramfs.cpio.gz
+
+# List contents of an existing archive
+zcat initramfs.cpio.gz | cpio --list
+
+# Extract an archive into the current directory
+zcat initramfs.cpio.gz | cpio --extract --make-directories</kbd></pre>
+
+        <h3>Disk Operations</h3>
+        <pre class="userinput"><kbd class="command">lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT   # List block devices
+blkid /dev/sdX1                         # Show UUID of a partition
+wipefs -a /dev/sdX                      # Erase partition table
+mkfs.ext4 -L label /dev/sdX1           # Format partition as ext4
+fdisk -l /dev/sdX                       # Show partition table</kbd></pre>
+
+        <h3>Chroot Setup and Teardown</h3>
+        <pre class="userinput"><kbd class="command"># Enter chroot
+sudo mount --bind /proc $LFS_ROOT/proc
+sudo mount --bind /sys  $LFS_ROOT/sys
+sudo mount --bind /dev  $LFS_ROOT/dev
+sudo chroot $LFS_ROOT /usr/bin/bash --login
+
+# Exit and clean up
+sudo umount $LFS_ROOT/dev
+sudo umount $LFS_ROOT/sys
+sudo umount $LFS_ROOT/proc</kbd></pre>
+
+        <h3>Kernel Configuration Shortcuts</h3>
+        <pre class="userinput"><kbd class="command"># Enable an option
+scripts/config --enable  CONFIG_EXT4_FS
+
+# Disable an option
+scripts/config --disable CONFIG_SOUND
+
+# Set a string value
+scripts/config --set-str CONFIG_DEFAULT_HOSTNAME "lfslite"
+
+# Check current value
+grep CONFIG_EXT4_FS .config</kbd></pre>
+
+        <h3>Environment Variable Quick-Reference</h3>
+        <pre class="userinput"><kbd class="command">export LFS=/mnt/lfs-lite
+export LFS_SOURCES=$LFS/sources
+export LFS_ROOT=$LFS/rootfs
+export LFS_TOOLS=$LFS/tools
+export INITRAMFS=$LFS/initramfs
+export JOBS=$(nproc)
+export LFS_LOG=$LFS/logs/build-$(date +%Y%m%d-%H%M).log</kbd></pre>
+
+        <!-- ── B: Configure flags ── -->
+        <h2 class="sect2">Appendix B — Key Configure Flags</h2>
+        <table class="compat">
+          <tr><th>Flag</th><th>Meaning</th></tr>
+          <tr><td><code>--prefix=/usr</code></td><td>Install files under /usr in the target system</td></tr>
+          <tr><td><code>--host=x86_64-linux-musl</code></td><td>Declare the target runtime triple (musl, not glibc)</td></tr>
+          <tr><td><code>--build=$(config.guess)</code></td><td>Auto-detect the build machine's triple</td></tr>
+          <tr><td><code>DESTDIR=$LFS_ROOT</code></td><td>Redirect installation to the LFS-Lite sysroot</td></tr>
+          <tr><td><code>--enable-static</code></td><td>Build static libraries (.a)</td></tr>
+          <tr><td><code>--disable-shared</code></td><td>Do not build shared libraries (.so)</td></tr>
+          <tr><td><code>LDFLAGS="-static"</code></td><td>Produce statically linked executables</td></tr>
+          <tr><td><code>CC=$LFS_TOOLS/musl-gcc</code></td><td>Use the musl-linked compiler wrapper</td></tr>
+          <tr><td><code>CFLAGS="-O2 -pipe"</code></td><td>Standard optimisation and build-speed flags</td></tr>
+          <tr><td><code>CPPFLAGS="-I$LFS_ROOT/usr/include"</code></td><td>Point preprocessor at sysroot headers</td></tr>
+          <tr><td><code>LDFLAGS="-L$LFS_ROOT/usr/lib"</code></td><td>Point linker at sysroot libraries</td></tr>
+        </table>
+
+        <!-- ── C: musl vs glibc ── -->
+        <h2 class="sect2">Appendix C — musl vs. glibc Quick Reference</h2>
+        <table class="compat">
+          <tr><th>Property</th><th>musl</th><th>glibc</th></tr>
+          <tr><td>Shared library size</td><td>~700 KB</td><td>~2 MB</td></tr>
+          <tr><td>Static linking quality</td><td>Excellent</td><td>Problematic for NSS features</td></tr>
+          <tr><td>POSIX conformance</td><td>Strict</td><td>Mostly conformant + extensions</td></tr>
+          <tr><td>Source code size</td><td>~80 000 lines</td><td>~1 500 000 lines</td></tr>
+          <tr><td>NSS (Name Service Switch)</td><td>Minimal</td><td>Full, pluggable</td></tr>
+          <tr><td>Locale support</td><td>Minimal</td><td>Full</td></tr>
+          <tr><td>glibc ABI compatibility</td><td>No</td><td>N/A</td></tr>
+          <tr><td>Dynamic linker name (x86_64)</td><td>ld-musl-x86_64.so.1</td><td>ld-linux-x86-64.so.2</td></tr>
+        </table>
+
+        <!-- ── D: Kernel options ── -->
+        <h2 class="sect2">Appendix D — Kernel Configuration Reference</h2>
+        <p>Minimum required options for a bootable LFS-Lite system:</p>
+        <table class="compat">
+          <tr><th>Option</th><th>Purpose</th><th>Required?</th></tr>
+          <tr><td><code>CONFIG_BLK_DEV_INITRD</code></td><td>initramfs/initrd support</td><td><strong>Yes</strong></td></tr>
+          <tr><td><code>CONFIG_TMPFS</code></td><td>/tmp and devtmpfs</td><td><strong>Yes</strong></td></tr>
+          <tr><td><code>CONFIG_PROC_FS</code></td><td>/proc filesystem</td><td><strong>Yes</strong></td></tr>
+          <tr><td><code>CONFIG_SYSFS</code></td><td>/sys filesystem</td><td><strong>Yes</strong></td></tr>
+          <tr><td><code>CONFIG_DEVTMPFS</code></td><td>Auto-populate /dev</td><td><strong>Yes</strong></td></tr>
+          <tr><td><code>CONFIG_DEVTMPFS_MOUNT</code></td><td>Auto-mount /dev at boot</td><td><strong>Yes</strong></td></tr>
+          <tr><td><code>CONFIG_EXT4_FS</code></td><td>Root partition filesystem</td><td><strong>Yes</strong></td></tr>
+          <tr><td><code>CONFIG_VIRTIO_BLK</code></td><td>VirtIO block device (QEMU)</td><td>QEMU only</td></tr>
+          <tr><td><code>CONFIG_VIRTIO_PCI</code></td><td>VirtIO PCI bus (QEMU)</td><td>QEMU only</td></tr>
+          <tr><td><code>CONFIG_VIRTIO_NET</code></td><td>VirtIO network (QEMU)</td><td>Optional</td></tr>
+          <tr><td><code>CONFIG_ATA</code></td><td>ATA/SATA subsystem (bare metal)</td><td>Bare metal</td></tr>
+          <tr><td><code>CONFIG_ATA_PIIX</code></td><td>Intel PIIX SATA controller</td><td>Bare metal</td></tr>
+        </table>
+
+        <!-- ── E: Package versions ── -->
+        <h2 class="sect2">Appendix E — Source Package Versions</h2>
+        <table class="compat">
+          <tr><th>Package</th><th>Version</th><th>Tarball / Source</th></tr>
+          <tr><td>musl libc</td><td>1.2.6</td><td>musl-1.2.6.tar.gz</td></tr>
+          <tr><td>GNU coreutils</td><td>9.11</td><td>coreutils-9.11.tar.xz</td></tr>
+          <tr><td>GNU bash</td><td>5.3</td><td>bash-5.3.tar.gz</td></tr>
+          <tr><td>util-linux</td><td>2.42</td><td>util-linux-2.42.tar.xz</td></tr>
+          <tr><td>BusyBox</td><td>git HEAD</td><td>git clone https://git.busybox.net/busybox</td></tr>
+          <tr><td>Linux kernel</td><td>7.1.2</td><td>linux-7.1.2.tar.xz</td></tr>
+          <tr><td>GNU GRUB</td><td>2.14</td><td>grub-2.14.tar.xz</td></tr>
+        </table>
+
+        <!-- ── F: Further reading ── -->
+        <h2 class="sect2">Appendix F — Further Reading</h2>
+        <ul>
+          <li><strong>Linux From Scratch</strong> (linuxfromscratch.org) —
+          The complete guide to building a full Linux system from source.
+          LFS-Lite draws its methodology directly from LFS.</li>
+          <li><strong>Beyond Linux From Scratch</strong> — Extends a base
+          LFS system with networking, X.org, and many additional packages.</li>
+          <li><strong>musl libc documentation</strong> (musl.libc.org) —
+          Comprehensive documentation of musl's behaviour, compatibility
+          notes, and design rationale.</li>
+          <li><strong>BusyBox documentation</strong> (busybox.net) —
+          Reference for BusyBox applet behaviour and Kconfig options.</li>
+          <li><strong>The Linux Kernel documentation</strong> (kernel.org/doc)
+          — Authoritative reference for kernel configuration, system calls,
+          and subsystem internals.</li>
+          <li><strong>GNU GRUB manual</strong> (gnu.org/software/grub/manual)
+          — Complete GRUB configuration and scripting reference.</li>
+          <li><strong>Filesystem Hierarchy Standard</strong>
+          (refspecs.linuxfoundation.org) — Defines the conventions
+          LFS-Lite partially follows.</li>
+          <li><strong>The runit init system</strong> (smarden.org/runit) —
+          An excellent reference for minimal but correct service supervision,
+          suitable as an extension to LFS-Lite's init.</li>
+        </ul>
+
+        <h2 class="sect2">Appendix G — QEMU Quick-Start</h2>
+        <p>
+          To boot LFS-Lite in QEMU without installing to physical hardware,
+          create a raw disk image and run the installer against it:
+        </p>
+        <pre class="userinput"><kbd class="command"># Create a 4 GB raw disk image
+qemu-img create -f raw /tmp/lfslite.img 4G
+
+# Attach it as a loop device so the installer can partition it
+sudo losetup -fP /tmp/lfslite.img
+sudo losetup -l   # find the loop device name, e.g. /dev/loop0
+
+# Run the installer against the loop device
+sudo LFS_ROOT=$LFS_ROOT /mnt/lfs-lite/install.sh /dev/loop0
+
+# Detach the loop device
+sudo losetup -d /dev/loop0
+
+# Boot the image in QEMU
+qemu-system-x86_64 \
+    -m 512M \
+    -drive file=/tmp/lfslite.img,format=raw,if=virtio \
+    -nographic \
+    -append "console=ttyS0 root=/dev/vda2 rw" \
+    -kernel $LFS_ROOT/boot/vmlinuz-7.1.2 \
+    -initrd $LFS_ROOT/boot/initramfs.cpio.gz</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            When using QEMU with <code>-drive if=virtio</code>, the disk
+            appears as <code>/dev/vda</code>, not <code>/dev/sda</code>.
+            Adjust <code>root=</code> in the QEMU <code>-append</code>
+            line and in <code class="filename">grub.cfg</code> accordingly,
+            or use the UUID-based form (<code>root=UUID=...</code>) which
+            is device-name agnostic.
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="troubleshooting.html" title="Troubleshooting">Prev</a>
+          <p>Troubleshooting</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 8. GRUB Setup — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter07.html" title="Chapter 7. Linux Kernel Compilation">Prev</a>
+          <p>Chapter 7. Linux Kernel Compilation</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter09.html" title="Chapter 9. initramfs Creation">Next</a>
+          <p>Chapter 9. initramfs Creation</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;8. GRUB Setup</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          The Grand Unified Bootloader (GRUB) is the component responsible
+          for loading the kernel. It runs before the kernel, provides a boot
+          menu, loads the kernel image and initramfs into memory, and passes
+          boot parameters to the kernel. GRUB supports both BIOS (legacy)
+          and UEFI boot modes; this chapter focuses on BIOS mode.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate build time:</strong>
+            <span class="segbody">5–10 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Required disk space:</strong>
+            <span class="segbody">~120 MB</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Source tarball:</strong>
+            <span class="segbody">grub-2.14.tar.xz</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="grub-intro" name="grub-intro"></a>8.1. Introduction to GRUB</h2>
+        <p>
+          Unlike the other packages in this book, GRUB itself runs
+          <em>before</em> the operating system — before musl, before bash,
+          before any userspace. It therefore does not link against musl and
+          does not use the <code class="filename">musl-gcc</code> wrapper.
+          GRUB is compiled as a standard host tool and installed on the
+          host, where the installer script will later invoke it to set up
+          the target disk.
+        </p>
+        <p>
+          GRUB's boot process has two stages:
+        </p>
+        <ul>
+          <li><strong>Stage 1</strong> (446 bytes in the MBR): loads
+          Stage 2 from the boot gap between the MBR and the first
+          partition.</li>
+          <li><strong>Stage 2</strong> (in <code class="filename">/boot/grub/</code>):
+          has a full filesystem driver, reads
+          <code class="filename">grub.cfg</code>, displays the menu, and
+          loads the kernel.</li>
+        </ul>
+
+        <h2 class="sect2"><a id="grub-extract" name="grub-extract"></a>8.2. Extracting the Source</h2>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
+tar -xJf grub-2.14.tar.xz
+cd grub-2.14</kbd></pre>
+
+        <h2 class="sect2"><a id="grub-configure" name="grub-configure"></a>8.3. Configuring GRUB</h2>
+        <pre class="userinput"><kbd class="command">./configure \
+    --prefix=/usr \
+    --sysconfdir=/etc \
+    --disable-efiemu \
+    --disable-werror \
+    --target=x86_64</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>The meaning of the configure options:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>--disable-efiemu</code></em></span></dt>
+            <dd><p>Disables the EFI emulator component, which is not needed
+            for a BIOS installation.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--disable-werror</code></em></span></dt>
+            <dd><p>GRUB's code may generate warnings with newer compilers.
+            This flag prevents warnings from being treated as fatal errors,
+            allowing the build to complete.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--target=x86_64</code></em></span></dt>
+            <dd><p>Build GRUB for the x86_64 platform.</p></dd>
+          </dl>
+        </div>
+
+        <h2 class="sect2"><a id="grub-compile" name="grub-compile"></a>8.4. Compiling GRUB</h2>
+        <pre class="userinput"><kbd class="command">make -j${JOBS}</kbd></pre>
+
+        <h2 class="sect2"><a id="grub-install" name="grub-install"></a>8.5. Installing GRUB to the Host</h2>
+        <p>
+          Install GRUB to the host system. It will be invoked by the
+          installer script (Chapter&nbsp;12) to write the bootloader to the
+          target disk's MBR.
+        </p>
+        <pre class="userinput"><kbd class="command">sudo make install</kbd></pre>
+        <p>Verify:</p>
+        <pre class="userinput"><kbd class="command">grub-install --version
+grub-mkconfig --version</kbd></pre>
+
+        <h2 class="sect2"><a id="grub-cfg" name="grub-cfg"></a>8.6. GRUB Configuration File</h2>
+        <p>
+          Create the template <code class="filename">grub.cfg</code> that will
+          be placed in the target system's
+          <code class="filename">/boot/grub/</code>. The installer script
+          in Chapter&nbsp;12 will adapt this template with the correct UUIDs
+          for the target disk's partitions.
+        </p>
+        <pre class="userinput"><kbd class="command">mkdir -pv $LFS_ROOT/boot/grub
+
+cat &gt; $LFS_ROOT/boot/grub/grub.cfg &lt;&lt; "EOF"
+# LFS-Lite GRUB configuration
+set default=0
+set timeout=5
+
+insmod part_msdos
+insmod ext2
+insmod all_video
+
+menuentry "LFS-Lite Linux 7.1.2" {
+    set root=(hd0,1)
+    linux  /vmlinuz-7.1.2 root=/dev/sda2 rw quiet
+    initrd /initramfs.cpio.gz
+}
+
+menuentry "LFS-Lite Linux 7.1.2 (verbose)" {
+    set root=(hd0,1)
+    linux  /vmlinuz-7.1.2 root=/dev/sda2 rw
+    initrd /initramfs.cpio.gz
+}
+EOF</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>Key grub.cfg directives:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>set root=(hd0,1)</code></em></span></dt>
+            <dd><p>GRUB disk numbering starts at 0; partition numbering
+            starts at 1. <code>(hd0,1)</code> is the first partition of the
+            first disk — the <code class="filename">/boot</code> partition.
+            The installer replaces this with a UUID-based
+            <code>search</code> command for robustness.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>root=/dev/sda2</code></em></span></dt>
+            <dd><p>Tells the kernel where to find the real root filesystem.
+            The installer replaces the device path with
+            <code>root=UUID=...</code> so the system boots correctly
+            regardless of disk ordering.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>initrd /initramfs.cpio.gz</code></em></span></dt>
+            <dd><p>The initramfs archive. The kernel loads this into memory
+            and extracts it before executing the first userspace
+            process.</p></dd>
+          </dl>
+        </div>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            Paths in <code class="filename">grub.cfg</code> are relative to
+            the GRUB root device, not to the running system root. When
+            <code class="filename">/boot</code> is a separate partition
+            (as the installer creates), files must be referenced as
+            <code>/vmlinuz-7.1.2</code> — not
+            <code>/boot/vmlinuz-7.1.2</code>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter07.html" title="Chapter 7. Linux Kernel Compilation">Prev</a>
+          <p>Chapter 7. Linux Kernel Compilation</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter09.html" title="Chapter 9. initramfs Creation">Next</a>
+          <p>Chapter 9. initramfs Creation</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

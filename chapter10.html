@@ -1,0 +1,239 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 10. Custom Init System — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter09.html" title="Chapter 9. initramfs Creation">Prev</a>
+          <p>Chapter 9. initramfs Creation</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter11.html" title="Chapter 11. Switching Root">Next</a>
+          <p>Chapter 11. Switching Root</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;10. Custom Init System</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          When the kernel finishes its own initialisation and pivots into the
+          real root filesystem via <code class="command">switch_root</code>,
+          it executes <code class="filename">/sbin/init</code>. The process
+          that takes this path becomes PID&nbsp;1 — the ancestor of every
+          other process on the system. This chapter designs and implements
+          that process.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate time:</strong>
+            <span class="segbody">&lt; 5 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Files created:</strong>
+            <span class="segbody">/sbin/init, /etc/fstab</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="init-pid1" name="init-pid1"></a>10.1. The Role of PID&nbsp;1</h2>
+        <p>
+          PID&nbsp;1 occupies a singular position in the Unix process model.
+          Its special properties are:
+        </p>
+        <ul>
+          <li>It is the direct or indirect ancestor of every other process.</li>
+          <li>When any process becomes an orphan (its parent has exited),
+          it is re-parented to PID&nbsp;1.</li>
+          <li>PID&nbsp;1 is the only process to which the kernel will not
+          deliver <code>SIGKILL</code>. If PID&nbsp;1 ignores
+          <code>SIGKILL</code>, the kernel will not force it to die.</li>
+          <li>If PID&nbsp;1 terminates for any reason, the kernel panics
+          immediately.</li>
+        </ul>
+        <p>
+          These properties mean that PID&nbsp;1's design must be correct and
+          resilient. LFS-Lite's init system is deliberately minimal — suitable
+          for a single-user system or a learning environment. It does not
+          implement service supervision, parallel startup, or dependency
+          ordering. Those are the domain of full init systems such as
+          systemd, runit, or s6.
+        </p>
+
+        <h2 class="sect2"><a id="init-script" name="init-script"></a>10.2. Writing the Init Script</h2>
+        <pre class="userinput"><kbd class="command">mkdir -pv $LFS_ROOT/sbin
+
+cat &gt; $LFS_ROOT/sbin/init &lt;&lt; "EOF"
+#!/bin/bash
+#
+# LFS-Lite /sbin/init — PID 1
+# Minimal init for a single-user system.
+#
+
+PATH=/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+emergency_shell() {
+    echo ""
+    echo "--- EMERGENCY SHELL ---"
+    echo "Type 'exit' to attempt to continue boot."
+    /bin/bash --login
+}
+
+echo ""
+echo "====================================="
+echo "  LFS-Lite Init System"
+echo "====================================="
+echo ""
+
+# Set hostname
+if [ -r /etc/hostname ]; then
+    hostname $(cat /etc/hostname)
+    echo "Hostname: $(hostname)"
+fi
+
+# Mount virtual filesystems (may already be mounted if initramfs moved them)
+if ! mountpoint -q /proc 2&gt;/dev/null; then
+    mount -t proc proc /proc || emergency_shell
+fi
+
+if ! mountpoint -q /sys 2&gt;/dev/null; then
+    mount -t sysfs sysfs /sys || emergency_shell
+fi
+
+if ! mountpoint -q /dev 2&gt;/dev/null; then
+    mount -t devtmpfs devtmpfs /dev || emergency_shell
+fi
+
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts -o gid=5,mode=620
+
+mount -t tmpfs tmpfs /tmp -o mode=1777
+
+# Mount remaining filesystems from /etc/fstab
+if [ -r /etc/fstab ]; then
+    mount -a -t nosysfs,noproc,nodevtmpfs,nodevpts 2&gt;/dev/null
+fi
+
+# Bring up loopback network interface
+if command -v ip &gt;/dev/null 2&gt;&amp;1; then
+    ip link set lo up
+fi
+
+echo ""
+echo "Boot complete. Starting login shell."
+echo ""
+
+trap 'echo "SIGTERM — shutting down."; sync; poweroff -f' TERM
+trap 'echo "SIGINT — rebooting.";    sync; reboot -f'    INT
+
+# Restart shell on exit rather than panicking
+while true; do
+    /bin/bash --login -i &lt;/dev/console &gt;/dev/console 2&gt;&amp;1
+    echo "Shell exited — restarting in 1 second..."
+    sleep 1
+done
+EOF
+
+chmod +x $LFS_ROOT/sbin/init</kbd></pre>
+
+        <div class="admon note">
+          <h3>Note on Design Decisions</h3>
+          <p>
+            The init script uses <code>#!/bin/bash</code> rather than
+            <code>#!/bin/sh</code>. In an educational context, bash's more
+            readable syntax and better error messages are preferred. The
+            <code>while true</code> loop around the login shell ensures
+            that if the user types <code>exit</code>, the system restarts
+            a new shell rather than panicking. Signal handlers provide
+            clean shutdown via <code>poweroff</code> and
+            <code>reboot</code>.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="init-fstab" name="init-fstab"></a>10.3. Creating /etc/fstab</h2>
+        <p>
+          The filesystem table is read by <code class="command">mount -a</code>
+          in the init script. The installer will generate a system-specific
+          version with correct UUIDs, but this template is used as a
+          placeholder and as the version shipped inside the rootfs:
+        </p>
+        <pre class="userinput"><kbd class="command">cat &gt; $LFS_ROOT/etc/fstab &lt;&lt; "EOF"
+# /etc/fstab — LFS-Lite
+# &lt;device&gt;    &lt;mountpoint&gt;  &lt;type&gt;     &lt;options&gt;              &lt;dump&gt; &lt;pass&gt;
+/dev/sda2     /             ext4       defaults               0      1
+/dev/sda1     /boot         ext4       defaults               0      2
+proc          /proc         proc       nosuid,noexec,nodev    0      0
+sysfs         /sys          sysfs      nosuid,noexec,nodev    0      0
+devtmpfs      /dev          devtmpfs   mode=0755,nosuid       0      0
+devpts        /dev/pts      devpts     gid=5,mode=620         0      0
+tmpfs         /tmp          tmpfs      mode=1777              0      0
+EOF</kbd></pre>
+
+        <h2 class="sect2"><a id="init-rationale" name="init-rationale"></a>10.4. Design Rationale</h2>
+        <p>
+          Several properties of this init system deserve explicit comment for
+          the reader who intends to extend or replace it:
+        </p>
+        <div class="variablelist">
+          <dl class="variablelist">
+            <dt><span class="term">Zombie reaping</span></dt>
+            <dd><p>PID&nbsp;1 must call <code>wait()</code> to reap zombie
+            processes — processes that have terminated but whose exit status
+            has not been collected. Bash's internal wait semantics perform
+            this reaping implicitly for child processes of the shell, but a
+            production init system would implement an explicit
+            <code>SIGCHLD</code> handler.</p></dd>
+            <dt><span class="term">No service management</span></dt>
+            <dd><p>A production init system forks background daemons and
+            monitors them for unexpected termination. Adding this capability
+            is left as an exercise. The runit or s6 init systems are
+            excellent references for minimal but correct service
+            supervision.</p></dd>
+            <dt><span class="term">Single-user assumption</span></dt>
+            <dd><p>LFS-Lite's init provides one shell on
+            <code class="filename">/dev/console</code>. A multi-user system
+            would spawn one <code class="command">agetty</code> per virtual
+            terminal. util-linux provides
+            <code class="command">agetty</code> for this purpose.</p></dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter09.html" title="Chapter 9. initramfs Creation">Prev</a>
+          <p>Chapter 9. initramfs Creation</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter11.html" title="Chapter 11. Switching Root">Next</a>
+          <p>Chapter 11. Switching Root</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

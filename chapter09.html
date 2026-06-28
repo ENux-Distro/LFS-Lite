@@ -1,0 +1,234 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Chapter 9. initramfs Creation — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Part I. Building the System</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter08.html" title="Chapter 8. GRUB Setup">Prev</a>
+          <p>Chapter 8. GRUB Setup</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter10.html" title="Chapter 10. Custom Init System">Next</a>
+          <p>Chapter 10. Custom Init System</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Chapter&nbsp;9. initramfs Creation</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+      <div class="package">
+        <p>
+          An initramfs (initial RAM filesystem) is a compressed cpio archive
+          that the kernel extracts into a tmpfs immediately after loading.
+          The kernel then executes the <code class="filename">/init</code>
+          script within this in-memory filesystem as PID&nbsp;1. Its sole
+          purpose is to locate and mount the real root filesystem, then
+          hand control over via <code class="command">switch_root</code>.
+        </p>
+        <div class="segmentedlist">
+          <div class="seg">
+            <strong class="segtitle">Approximate time:</strong>
+            <span class="segbody">&lt; 5 minutes</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Output size:</strong>
+            <span class="segbody">1–3 MB (compressed)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="installation">
+
+        <h2 class="sect2"><a id="initramfs-what" name="initramfs-what"></a>9.1. What is an initramfs?</h2>
+        <p>
+          Without an initramfs, the kernel would need all drivers necessary
+          to mount the root filesystem compiled in — including disk drivers,
+          partition detection, and filesystem support. The initramfs approach
+          is more modular: a tiny BusyBox environment handles device detection
+          and mounting, then immediately hands control to the real system.
+        </p>
+        <p>
+          The initramfs lifecycle is brief:
+        </p>
+        <ol>
+          <li>Kernel extracts the cpio archive into a tmpfs.</li>
+          <li>Kernel executes <code class="filename">/sbin/init</code> (our script).</li>
+          <li>The script mounts <code class="filename">/proc</code>, <code class="filename">/sys</code>, <code class="filename">/dev</code>.</li>
+          <li>It locates the real root device from the kernel command line.</li>
+          <li>It mounts the real root at <code class="filename">/mnt/root</code>.</li>
+          <li><code class="command">switch_root</code> pivots into the new root — the initramfs is freed from RAM.</li>
+        </ol>
+
+        <h2 class="sect2"><a id="initramfs-layout" name="initramfs-layout"></a>9.2. initramfs Directory Structure</h2>
+        <p>
+          The staging directory was created in
+          <a href="chapter06.html#bb-install">Section&nbsp;6.5</a>.
+          Verify it contains the expected structure:
+        </p>
+        <pre class="userinput"><kbd class="command">export INITRAMFS=/mnt/lfs-lite/initramfs
+find $INITRAMFS -maxdepth 2 | sort</kbd></pre>
+        <p>Expected output includes:</p>
+        <pre class="userinput"><kbd class="command">/mnt/lfs-lite/initramfs/bin/busybox
+/mnt/lfs-lite/initramfs/bin/sh
+/mnt/lfs-lite/initramfs/bin/mount
+/mnt/lfs-lite/initramfs/bin/switch_root
+/mnt/lfs-lite/initramfs/dev/
+/mnt/lfs-lite/initramfs/mnt/root/
+/mnt/lfs-lite/initramfs/proc/
+/mnt/lfs-lite/initramfs/sbin/
+/mnt/lfs-lite/initramfs/sys/</kbd></pre>
+
+        <h2 class="sect2"><a id="initramfs-devnodes" name="initramfs-devnodes"></a>9.3. Creating Essential Device Nodes</h2>
+        <p>
+          The initramfs requires <code class="filename">/dev/console</code>
+          and <code class="filename">/dev/null</code> as real character
+          device files. These cannot be symlinks and require root
+          privileges:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo mknod -m 600 $INITRAMFS/dev/console c 5 1
+sudo mknod -m 666 $INITRAMFS/dev/null    c 1 3</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>Device numbers:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><code>c 5 1</code> — console</span></dt>
+            <dd><p>Character device, major 5 (TTY driver), minor 1 (system
+            console). These are fixed ABI values defined by the kernel and
+            documented in <code class="filename">Documentation/admin-guide/devices.txt</code>.</p></dd>
+            <dt><span class="term"><code>c 1 3</code> — null</span></dt>
+            <dd><p>Character device, major 1 (memory driver), minor 3
+            (null device). Discards all writes; reads return EOF.</p></dd>
+          </dl>
+        </div>
+
+        <h2 class="sect2"><a id="initramfs-init" name="initramfs-init"></a>9.4. Writing the initramfs /init Script</h2>
+        <p>
+          The <code class="filename">/init</code> script is the first program
+          the kernel executes. It must be robust: if it exits or crashes,
+          the kernel panics.
+        </p>
+        <pre class="userinput"><kbd class="command">cat &gt; $INITRAMFS/sbin/init &lt;&lt; "EOF"
+#!/bin/sh
+#
+# LFS-Lite initramfs /init
+# Runs as PID 1 in the initial RAM filesystem.
+# Mounts the real root and pivots into it.
+#
+
+mount -t proc     proc     /proc
+mount -t sysfs    sysfs    /sys
+mount -t devtmpfs devtmpfs /dev
+
+exec &gt; /dev/console 2&gt;&amp;1 &lt; /dev/console
+
+echo "LFS-Lite initramfs starting..."
+
+# Parse kernel command line for root= parameter
+ROOT=""
+for param in $(cat /proc/cmdline); do
+    case "$param" in
+        root=*) ROOT="${param#root=}" ;;
+    esac
+done
+
+if [ -z "$ROOT" ]; then
+    echo "ERROR: No root= on kernel command line. Dropping to shell."
+    exec /bin/sh
+fi
+
+echo "Waiting for root device: $ROOT"
+attempts=0
+while [ ! -b "$ROOT" ] &amp;&amp; [ $attempts -lt 20 ]; do
+    sleep 0.5
+    attempts=$((attempts + 1))
+done
+
+if [ ! -b "$ROOT" ]; then
+    echo "ERROR: Root device $ROOT did not appear."
+    exec /bin/sh
+fi
+
+echo "Mounting $ROOT ..."
+mount -o rw "$ROOT" /mnt/root
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to mount $ROOT."
+    exec /bin/sh
+fi
+
+echo "Switching to real root..."
+mount --move /proc /mnt/root/proc
+mount --move /sys  /mnt/root/sys
+mount --move /dev  /mnt/root/dev
+
+exec switch_root /mnt/root /sbin/init
+
+echo "ERROR: switch_root failed."
+exec /bin/sh
+EOF
+
+chmod +x $INITRAMFS/sbin/init</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            The script uses <code>#!/bin/sh</code>, which resolves to the
+            BusyBox <code>ash</code> shell via the symlink created in
+            <a href="chapter06.html#bb-install">Section&nbsp;6.5</a>.
+            POSIX <code>sh</code> syntax is used throughout — no bashisms.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="initramfs-pack" name="initramfs-pack"></a>9.5. Packaging the initramfs</h2>
+        <p>
+          Package the staging directory into a gzipped cpio archive and
+          place it in the boot directory:
+        </p>
+        <pre class="userinput"><kbd class="command">cd $INITRAMFS
+find . | cpio --create --format=newc 2&gt;/dev/null | \
+    gzip -9 &gt; $LFS_ROOT/boot/initramfs.cpio.gz</kbd></pre>
+        <p>Verify the archive:</p>
+        <pre class="userinput"><kbd class="command">ls -lh $LFS_ROOT/boot/initramfs.cpio.gz
+
+# List contents to confirm /sbin/init and /bin/busybox are present
+zcat $LFS_ROOT/boot/initramfs.cpio.gz | cpio --list | grep -E 'init|busybox|switch'</kbd></pre>
+        <p>
+          A typical LFS-Lite initramfs is between 1 and 3&nbsp;MB. If it is
+          significantly larger, review the BusyBox configuration for
+          unnecessary applets with
+          <code class="command">make menuconfig</code>.
+        </p>
+      </div>
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="chapter08.html" title="Chapter 8. GRUB Setup">Prev</a>
+          <p>Chapter 8. GRUB Setup</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="chapter10.html" title="Chapter 10. Custom Init System">Next</a>
+          <p>Chapter 10. Custom Init System</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>

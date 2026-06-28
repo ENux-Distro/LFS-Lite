@@ -1,0 +1,192 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+    <title>Toolchain Validation — LFS-Lite</title>
+    <link rel="stylesheet" type="text/css" href="stylesheets/lfs.css" />
+    <base href="https://extras.emirpasha.com/lfs-lite/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body class="lfs" id="lfs-lite-1.0">
+
+    <div class="navheader">
+      <h4>LFS-Lite — Version 1.0</h4>
+      <h3>Preface</h3>
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="requirements.html" title="Host System Requirements">Prev</a>
+          <p>Host System Requirements</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="architecture.html" title="System Architecture Overview">Next</a>
+          <p>System Architecture Overview</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+    <h1 class="sect1">Toolchain Validation</h1>
+
+    <div class="wrap" lang="en" xml:lang="en">
+
+      <div class="package">
+        <h2 class="sect2">Understanding the Build Toolchain</h2>
+        <p>
+          When compiling software from source, three distinct concepts must be
+          kept separate:
+        </p>
+        <ul>
+          <li><strong>Build system</strong>: the machine on which compilation
+          occurs (your host).</li>
+          <li><strong>Host system</strong>: the machine on which the compiled
+          software will run. In a true cross-compilation scenario this differs
+          from the build system; in LFS-Lite they are initially the same
+          architecture.</li>
+          <li><strong>Target system</strong>: for compilers specifically, the
+          machine for which they generate code.</li>
+        </ul>
+        <p>
+          LFS-Lite is not a cross-compilation guide. We compile natively: the
+          build machine and the runtime machine are the same architecture.
+          However, we are constructing a system whose runtime environment is
+          isolated from the host. This distinction matters for flags such as
+          <code class="parameter">--prefix</code>,
+          <code class="parameter">--sysroot</code>, and
+          <code class="parameter">DESTDIR</code>.
+        </p>
+      </div>
+
+      <div class="installation">
+        <h2 class="sect2">The Role of --prefix</h2>
+        <p>
+          The <code class="parameter">--prefix</code> flag passed to GNU
+          Autoconf-based <code class="command">./configure</code> scripts
+          controls where the software <em>believes</em> it will be installed.
+          There are two common values used throughout this book:
+        </p>
+        <div class="variablelist">
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>--prefix=/tools</code></em></span></dt>
+            <dd><p>Used during the early toolchain phase to isolate host-built
+            tools from the target system.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--prefix=/usr</code></em></span></dt>
+            <dd><p>Used for the final system installation, reflecting where
+            tools will live in the completed root filesystem.</p></dd>
+          </dl>
+        </div>
+        <p>
+          Setting the correct prefix is not optional. An incorrect prefix
+          causes software to embed wrong paths into its binaries, producing
+          a system that fails at runtime with path-not-found errors that are
+          difficult to trace back to a configure mistake made hours earlier.
+        </p>
+
+        <h2 class="sect2">Verifying the Compiler</h2>
+        <p>
+          Before beginning, confirm the compiler produces functional binaries:
+        </p>
+        <pre class="userinput"><kbd class="command">cat &gt; /tmp/hello.c &lt;&lt; "EOF"
+#include &lt;stdio.h&gt;
+int main(void) {
+    printf("Compiler is functional.\n");
+    return 0;
+}
+EOF
+
+gcc /tmp/hello.c -o /tmp/hello &amp;&amp; /tmp/hello</kbd></pre>
+        <p>Expected output:</p>
+        <pre class="userinput"><kbd class="command">Compiler is functional.</kbd></pre>
+
+        <p>Verify that the default linker is the GNU linker:</p>
+        <pre class="userinput"><kbd class="command">ld --version | head -1</kbd></pre>
+
+        <p>Verify that the assembler is GNU as:</p>
+        <pre class="userinput"><kbd class="command">as --version | head -1</kbd></pre>
+        <p>
+          Both should report GNU Binutils version strings.
+        </p>
+
+        <h2 class="sect2">Understanding DESTDIR</h2>
+        <p>
+          Throughout this book, packages are installed using
+          <code class="parameter">DESTDIR=$LFS_ROOT</code>. This variable
+          redirects the installation from the live filesystem root
+          (<code class="filename">/</code>) to the LFS-Lite root
+          (<code class="filename">/mnt/lfs-lite/rootfs</code>), while
+          preserving all embedded paths at their intended values.
+        </p>
+        <p>
+          For example, a binary installed with
+          <code>make DESTDIR=/mnt/lfs-lite/rootfs install</code> will land at
+          <code class="filename">/mnt/lfs-lite/rootfs/usr/bin/ls</code> but
+          will have <code class="filename">/usr/bin</code> embedded internally
+          as its install prefix — which is correct for the runtime system.
+        </p>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            Never omit <code>DESTDIR</code> when installing packages into the
+            LFS-Lite root. Installing directly into <code>/</code> with
+            <code>--prefix=/usr</code> would overwrite your host system's
+            userspace tools — a destructive operation that may render your
+            host unbootable.
+          </p>
+        </div>
+
+        <h2 class="sect2">A Note on Parallel Builds</h2>
+        <p>
+          Throughout this book, build commands use
+          <code class="parameter">-j$(nproc)</code> to parallelise compilation
+          across all available CPU cores. This dramatically reduces build time
+          on multi-core systems. However, some packages have Makefiles with
+          dependency errors that only surface during parallel builds.
+        </p>
+        <p>
+          If a parallel build fails unexpectedly, retry with
+          <code class="parameter">-j1</code> before assuming the source
+          package is broken. A failure that disappears at
+          <code>-j1</code> is a Makefile parallelism bug, not an environment
+          problem.
+        </p>
+
+        <h2 class="sect2">The musl-gcc Wrapper</h2>
+        <p>
+          Because the final system uses musl libc rather than the host's
+          glibc, subsequent packages must be compiled and linked against musl.
+          Chapter&nbsp;2 produces a wrapper script at
+          <code class="filename">/mnt/lfs-lite/tools/musl-gcc</code> that
+          invokes the host <code>gcc</code> with the correct
+          <code class="parameter">--sysroot</code>, include paths, and library
+          paths pointing at the LFS-Lite root.
+        </p>
+        <p>
+          All packages from Chapter&nbsp;3 onwards set
+          <code>CC=/mnt/lfs-lite/tools/musl-gcc</code> in their configure
+          invocation. Do not use the bare <code>gcc</code> command for these
+          builds.
+        </p>
+      </div>
+
+    </div>
+
+    <div class="navfooter">
+      <ul>
+        <li class="prev">
+          <a accesskey="p" href="requirements.html" title="Host System Requirements">Prev</a>
+          <p>Host System Requirements</p>
+        </li>
+        <li class="next">
+          <a accesskey="n" href="architecture.html" title="System Architecture Overview">Next</a>
+          <p>System Architecture Overview</p>
+        </li>
+        <li class="home">
+          <a accesskey="h" href="index.html" title="LFS-Lite">Home</a>
+        </li>
+      </ul>
+    </div>
+
+  </body>
+</html>
