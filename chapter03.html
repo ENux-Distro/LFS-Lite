@@ -82,12 +82,45 @@
           interactive sessions depend.
         </p>
 
-        <h2 class="sect2"><a id="coreutils-extract" name="coreutils-extract"></a>3.2. Extracting the Source</h2>
+        <h2 class="sect2"><a id="coreutils-headers" name="coreutils-headers"></a>3.2. Installing Kernel Headers</h2>
+        <p>
+          coreutils 9.11 includes code that references
+          <code class="filename">linux/version.h</code> at compile time.
+          The Linux kernel headers must therefore be installed into the
+          sysroot before coreutils is configured. Extract the kernel source
+          and install the sanitised userspace headers now:
+        </p>
+        <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
+tar -xJf linux-7.1.2.tar.xz
+cd linux-7.1.2
+
+make mrproper
+make headers
+find usr/include -name '.*' -delete
+rm usr/include/Makefile
+cp -rv usr/include $LFS_ROOT/usr/</kbd></pre>
+        <p>
+          Verify the headers landed correctly:
+        </p>
+        <pre class="userinput"><kbd class="command">ls $LFS_ROOT/usr/include/linux/version.h</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            Chapter&nbsp;5 references this same step for util-linux. Because
+            the headers are already installed here, the extraction and
+            <code class="command">make headers</code> commands in
+            Chapter&nbsp;5 can be skipped — only the
+            <code class="command">cp</code> step would need to be re-run if
+            you clean the sysroot between chapters.
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="coreutils-extract" name="coreutils-extract"></a>3.3. Extracting the Source</h2>
         <pre class="userinput"><kbd class="command">cd $LFS_SOURCES
 tar -xJf coreutils-9.11.tar.xz
 cd coreutils-9.11</kbd></pre>
 
-        <h2 class="sect2"><a id="coreutils-configure" name="coreutils-configure"></a>3.3. Configuring coreutils</h2>
+        <h2 class="sect2"><a id="coreutils-configure" name="coreutils-configure"></a>3.4. Configuring coreutils</h2>
         <pre class="userinput"><kbd class="command">./configure \
     --prefix=/usr \
     --host=x86_64-linux-musl \
@@ -121,7 +154,7 @@ cd coreutils-9.11</kbd></pre>
           </dl>
         </div>
 
-        <h2 class="sect2"><a id="coreutils-compile" name="coreutils-compile"></a>3.4. Compiling coreutils</h2>
+        <h2 class="sect2"><a id="coreutils-compile" name="coreutils-compile"></a>3.5. Compiling coreutils</h2>
         <pre class="userinput"><kbd class="command">make -j${JOBS}</kbd></pre>
         <p>
           coreutils is a large package. Expect this to take two to five minutes
@@ -129,7 +162,7 @@ cd coreutils-9.11</kbd></pre>
           significantly from multiple cores.
         </p>
 
-        <h2 class="sect2"><a id="coreutils-test" name="coreutils-test"></a>3.5. Running the Test Suite</h2>
+        <h2 class="sect2"><a id="coreutils-test" name="coreutils-test"></a>3.6. Running the Test Suite</h2>
         <p>
           coreutils includes a comprehensive test suite. Running it is strongly
           recommended:
@@ -148,7 +181,7 @@ cd coreutils-9.11</kbd></pre>
           </p>
         </div>
 
-        <h2 class="sect2"><a id="coreutils-install" name="coreutils-install"></a>3.6. Installing coreutils</h2>
+        <h2 class="sect2"><a id="coreutils-install" name="coreutils-install"></a>3.7. Installing coreutils</h2>
         <pre class="userinput"><kbd class="command">make DESTDIR=$LFS_ROOT install</kbd></pre>
         <p>Verify that the key binaries are present and statically linked:</p>
         <pre class="userinput"><kbd class="command">ls $LFS_ROOT/usr/bin/ls
