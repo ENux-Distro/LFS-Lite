@@ -150,11 +150,10 @@ cd util-linux-2.42</kbd></pre>
             searching for it.</p></dd>
             <dt><span class="term"><em class="parameter"><code>--disable-nsenter</code></em></span></dt>
             <dd><p>Disables the <code class="command">nsenter</code> namespace-entry
-            tool. util-linux 2.42's <code class="filename">nsenter.c</code>
-            references <code>AT_HANDLE_FID</code> (added in Linux 6.5), but the
-            constant is not reliably visible through the musl-gcc sysroot include
-            path during the util-linux build. nsenter is not needed in a minimal
-            system.</p></dd>
+            tool. nsenter is used to enter existing Linux namespaces — a capability
+            with no role in a minimal single-user system. Excluding it keeps the
+            build focused and avoids pulling in kernel header dependencies that
+            are outside the scope of this build.</p></dd>
             <dt><span class="term"><em class="parameter"><code>--without-ncurses, --without-tinfo</code></em></span></dt>
             <dd><p>Disables ncurses-dependent features in tools like
             <code class="command">cfdisk</code>. We accept simpler terminal

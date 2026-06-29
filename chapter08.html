@@ -103,13 +103,12 @@ cd grub-2.14</kbd></pre>
             This flag prevents warnings from being treated as fatal errors,
             allowing the build to complete.</p></dd>
             <dt><span class="term"><em class="parameter"><code>--disable-grub-manpages</code></em></span></dt>
-            <dd><p>Skips generation of man pages, which requires
-            <code class="command">help2man</code> to be present on the host.
-            On systems where <code class="command">help2man</code> is absent
-            or intercepted by a cross-dispatch wrapper (such as ENux's
-            <code class="filename">/enux/cross/bin/</code>), the build will
-            fail with exit code 127. Man pages are not needed for a
-            functional bootloader installation.</p></dd>
+            <dd><p>Skips generation of man pages. Man page generation requires
+            <code class="command">help2man</code> on the host, which is not
+            a standard build dependency and is not listed in the host system
+            requirements. GRUB's man pages document its command-line tools
+            for the installed system; they have no bearing on whether the
+            bootloader itself functions correctly.</p></dd>
             <dt><span class="term"><em class="parameter"><code>--target=x86_64</code></em></span></dt>
             <dd><p>Build GRUB for the x86_64 platform.</p></dd>
           </dl>

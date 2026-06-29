@@ -77,21 +77,13 @@
 └── live/
     └── filesystem.squashfs</kbd></pre>
 
-        <h2 class="sect2"><a id="iso-prereqs" name="iso-prereqs"></a>12.2. Installing Required Tools</h2>
+        <h2 class="sect2"><a id="iso-prereqs" name="iso-prereqs"></a>12.2. Verifying ISO Tools</h2>
         <p>
-          <code class="command">xorriso</code> and
-          <code class="command">squashfs-tools</code> must be present on the
-          host. Install them if necessary:
+          Both <code class="command">xorriso</code> and
+          <code class="command">mksquashfs</code> were listed in the host
+          system requirements and should already be installed. Confirm they
+          are available before proceeding:
         </p>
-        <pre class="userinput"><kbd class="command"># Debian / Ubuntu / ENux
-sudo apt-get install xorriso squashfs-tools
-
-# Fedora / RHEL
-sudo dnf install xorriso squashfs-tools
-
-# Arch Linux
-sudo pacman -S xorriso squashfs-tools</kbd></pre>
-        <p>Verify:</p>
         <pre class="userinput"><kbd class="command">xorriso --version
 mksquashfs -version</kbd></pre>
 

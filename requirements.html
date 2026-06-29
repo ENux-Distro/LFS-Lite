@@ -86,6 +86,8 @@
           <tr><td>Texinfo</td><td>5.0</td></tr>
           <tr><td>XZ Utils</td><td>5.0.0</td></tr>
           <tr><td>Linux Kernel</td><td>5.4</td></tr>
+          <tr><td>xorriso</td><td>1.5.0</td></tr>
+          <tr><td>mksquashfs (squashfs-tools)</td><td>4.4</td></tr>
         </table>
         <p>
           Additionally: the host kernel must support UNIX 98 PTYs
@@ -207,19 +209,20 @@ bash version-check.sh</kbd></pre>
         <pre class="userinput"><kbd class="command">sudo apt-get install -y \
     build-essential bison gawk texinfo xz-utils \
     python3 m4 perl patch diffutils findutils \
-    gcc g++ make</kbd></pre>
+    gcc g++ make xorriso squashfs-tools</kbd></pre>
         <p>
           On Fedora/RHEL-based hosts:
         </p>
         <pre class="userinput"><kbd class="command">sudo dnf install -y \
     gcc gcc-c++ make bison gawk texinfo xz \
-    python3 m4 perl patch diffutils findutils</kbd></pre>
+    python3 m4 perl patch diffutils findutils \
+    xorriso squashfs-tools</kbd></pre>
         <p>
           On Arch Linux:
         </p>
         <pre class="userinput"><kbd class="command">sudo pacman -S --needed \
     base-devel bison gawk texinfo xz \
-    python m4 perl patch</kbd></pre>
+    python m4 perl patch xorriso squashfs-tools</kbd></pre>
 
         <h2 class="sect2">Preparing the Mount Point</h2>
         <p>

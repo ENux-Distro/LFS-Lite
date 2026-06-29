@@ -98,6 +98,8 @@ grep -q 'CONFIG_SWITCH_ROOT=y' .config || \
 # Disable utmp/wtmp — not needed in initramfs, avoids musl edge cases
 sed -i 's/CONFIG_FEATURE_WTMP=y/# CONFIG_FEATURE_WTMP is not set/' .config
 sed -i 's/CONFIG_FEATURE_UTMP=y/# CONFIG_FEATURE_UTMP is not set/' .config
+
+# Disable tc — traffic control tool, not needed in initramfs
 sed -i 's/CONFIG_TC=y/# CONFIG_TC is not set/' .config
 
 # Append extra compiler flags
