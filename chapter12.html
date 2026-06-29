@@ -3,7 +3,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
-    <title>Chapter 12. Custom Installer Script — LFS-Lite</title>
+    <title>Chapter 12. Building the Bootable ISO — LFS-Lite</title>
     <base href="https://extras.emirpasha.com/LFS-Lite/" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   </head>
@@ -27,248 +27,287 @@
       </ul>
     </div>
 
-    <h1 class="sect1">Chapter&nbsp;12. Custom Installer Script</h1>
+    <h1 class="sect1">Chapter&nbsp;12. Building the Bootable ISO</h1>
 
     <div class="wrap" lang="en" xml:lang="en">
       <div class="package">
         <p>
-          The installer script automates the process of preparing a target
-          disk and writing the LFS-Lite system to it. It partitions the disk,
-          formats the partitions, copies the root filesystem, installs GRUB,
-          and writes a correct <code class="filename">grub.cfg</code> using
-          the target partitions' UUIDs for reliable boot identification.
+          This chapter assembles everything built in the previous chapters into
+          a single bootable ISO image. The kernel, initramfs, and root
+          filesystem squashfs are placed into a staging directory; GRUB is
+          embedded as the bootloader; and
+          <code class="command">xorriso</code> writes the final hybrid ISO that
+          boots from both optical drives and USB media.
         </p>
         <div class="segmentedlist">
           <div class="seg">
             <strong class="segtitle">Approximate time:</strong>
-            <span class="segbody">5–20 minutes (depends on disk speed)</span>
+            <span class="segbody">2–5 minutes</span>
           </div>
           <div class="seg">
-            <strong class="segtitle">Risk level:</strong>
-            <span class="segbody"><strong>HIGH</strong> — destructive disk operation</span>
+            <strong class="segtitle">Required disk space:</strong>
+            <span class="segbody">~200 MB for the ISO staging tree</span>
+          </div>
+          <div class="seg">
+            <strong class="segtitle">Tools required:</strong>
+            <span class="segbody">xorriso, grub-mkrescue (from GRUB, Chapter&nbsp;8), mksquashfs</span>
           </div>
         </div>
       </div>
 
       <div class="installation">
 
-        <h2 class="sect2"><a id="installer-intro" name="installer-intro"></a>12.1. Introduction</h2>
+        <h2 class="sect2"><a id="iso-intro" name="iso-intro"></a>12.1. How the Live ISO Works</h2>
         <p>
-          The installer creates the following partition layout on the target
-          disk:
+          A live ISO does not install anything to disk. When booted, GRUB
+          loads the kernel and the initramfs into memory. The initramfs
+          <code class="filename">/sbin/init</code> script mounts the squashfs
+          image from the ISO as a loop device, then calls
+          <code class="command">switch_root</code> to pivot into it. From that
+          point on, the system runs entirely from RAM — the ISO medium can be
+          removed after boot.
         </p>
-        <table class="compat">
-          <tr><th>Partition</th><th>Size</th><th>Type</th><th>Mount Point</th><th>Contents</th></tr>
-          <tr><td>sda1</td><td>512 MB</td><td>ext4</td><td>/boot</td><td>vmlinuz, initramfs, grub/</td></tr>
-          <tr><td>sda2</td><td>Remainder</td><td>ext4</td><td>/</td><td>Root filesystem</td></tr>
-        </table>
-        <p>
-          This script does not handle encrypted volumes, LVM, software RAID,
-          UEFI, or network installations. Those capabilities are left as
-          extensions for the reader.
-        </p>
+        <p>The ISO contains the following layout:</p>
+        <pre class="userinput"><kbd class="command">iso-root/
+├── boot/
+│   ├── grub/
+│   │   └── grub.cfg
+│   ├── vmlinuz-7.1.2
+│   └── initramfs.cpio.gz
+└── live/
+    └── filesystem.squashfs</kbd></pre>
 
-        <h2 class="sect2"><a id="installer-warning" name="installer-warning"></a>12.2. Safety Warning</h2>
-        <div class="admon warn">
-          <h3>Warning</h3>
-          <p>
-            The installer partitions a disk, which is a
-            <strong>destructive and irreversible operation</strong>. All
-            data on the target disk will be permanently lost. Verify the
-            target device path (e.g. <code>/dev/sdb</code>) with
-            <code class="command">lsblk</code> before running the script.
-            Do not run this against a disk containing data you wish to keep.
-            Do not run this against the disk your host system is installed on.
-          </p>
+        <h2 class="sect2"><a id="iso-prereqs" name="iso-prereqs"></a>12.2. Installing Required Tools</h2>
+        <p>
+          <code class="command">xorriso</code> and
+          <code class="command">squashfs-tools</code> must be present on the
+          host. Install them if necessary:
+        </p>
+        <pre class="userinput"><kbd class="command"># Debian / Ubuntu / ENux
+sudo apt-get install xorriso squashfs-tools
+
+# Fedora / RHEL
+sudo dnf install xorriso squashfs-tools
+
+# Arch Linux
+sudo pacman -S xorriso squashfs-tools</kbd></pre>
+        <p>Verify:</p>
+        <pre class="userinput"><kbd class="command">xorriso --version
+mksquashfs -version</kbd></pre>
+
+        <h2 class="sect2"><a id="iso-squashfs" name="iso-squashfs"></a>12.3. Compressing the Root Filesystem</h2>
+        <p>
+          The root filesystem at <code class="filename">$LFS_ROOT</code> is
+          compressed into a squashfs image. squashfs is a read-only compressed
+          filesystem format; the kernel mounts it directly from the ISO via a
+          loop device at boot time.
+        </p>
+        <pre class="userinput"><kbd class="command">mkdir -pv $LFS/iso-root/live
+
+mksquashfs $LFS_ROOT $LFS/iso-root/live/filesystem.squashfs \
+    -comp zstd \
+    -e $LFS_ROOT/proc \
+    -e $LFS_ROOT/sys \
+    -e $LFS_ROOT/dev \
+    -e $LFS_ROOT/tmp \
+    -noappend</kbd></pre>
+        <div class="variablelist">
+          <p class="title"><strong>The meaning of the mksquashfs options:</strong></p>
+          <dl class="variablelist">
+            <dt><span class="term"><em class="parameter"><code>-comp zstd</code></em></span></dt>
+            <dd><p>Uses Zstandard compression. zstd offers better compression
+            ratios than gzip and much faster decompression, which reduces
+            RAM pressure when the kernel decompresses the squashfs at
+            mount time.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>-e proc sys dev tmp</code></em></span></dt>
+            <dd><p>Excludes the virtual filesystem mount points. These
+            directories are empty at build time and must not be baked into
+            the squashfs; the init script mounts them fresh at every
+            boot.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>-noappend</code></em></span></dt>
+            <dd><p>Overwrites any existing squashfs image rather than
+            appending to it. Safe to re-run during iteration.</p></dd>
+          </dl>
         </div>
+        <p>Verify the squashfs was created and check its size:</p>
+        <pre class="userinput"><kbd class="command">ls -lh $LFS/iso-root/live/filesystem.squashfs</kbd></pre>
 
-        <h2 class="sect2"><a id="installer-script" name="installer-script"></a>12.3. Writing the Installer Script</h2>
-        <pre class="userinput"><kbd class="command">cat &gt; /mnt/lfs-lite/install.sh &lt;&lt; 'INSTALLER_EOF'
-#!/bin/bash
-#
-# LFS-Lite Installer
-# Usage: sudo ./install.sh /dev/sdX
-#
-set -e
+        <h2 class="sect2"><a id="iso-layout" name="iso-layout"></a>12.4. Assembling the ISO Staging Tree</h2>
+        <p>
+          Copy the kernel and initramfs into the ISO staging directory, then
+          write the GRUB configuration:
+        </p>
+        <pre class="userinput"><kbd class="command">mkdir -pv $LFS/iso-root/boot/grub
 
-LFS_ROOT="${LFS_ROOT:-/mnt/lfs-lite/rootfs}"
+# Kernel
+cp -v $LFS_ROOT/boot/vmlinuz-7.1.2 $LFS/iso-root/boot/
 
-# --- Validation ---
+# initramfs
+cp -v $LFS/initramfs.cpio.gz $LFS/iso-root/boot/
 
-if [ "$(id -u)" -ne 0 ]; then
-    echo "ERROR: Must be run as root."; exit 1
-fi
-
-if [ -z "$1" ]; then
-    echo "Usage: $0 /dev/sdX"
-    echo ""; echo "Available disks:"
-    lsblk -d -o NAME,SIZE,MODEL
-    exit 1
-fi
-
-TARGET="$1"
-
-if [ ! -b "$TARGET" ]; then
-    echo "ERROR: $TARGET is not a block device."; exit 1
-fi
-
-if [ ! -d "$LFS_ROOT" ]; then
-    echo "ERROR: LFS_ROOT ($LFS_ROOT) does not exist."; exit 1
-fi
-
-echo ""
-echo "====================================="
-echo "  LFS-Lite Installer"
-echo "====================================="
-echo ""
-echo "Target disk : $TARGET"
-echo "Source root : $LFS_ROOT"
-echo ""
-echo "WARNING: ALL DATA ON $TARGET WILL BE DESTROYED."
-echo ""
-read -rp "Type 'yes' to continue: " CONFIRM
-[ "$CONFIRM" = "yes" ] || { echo "Aborted."; exit 0; }
-
-# --- Determine partition names ---
-if echo "$TARGET" | grep -qE 'nvme|mmcblk'; then
-    BOOT_PART="${TARGET}p1"
-    ROOT_PART="${TARGET}p2"
-else
-    BOOT_PART="${TARGET}1"
-    ROOT_PART="${TARGET}2"
-fi
-
-# --- Partitioning ---
-echo "[1/7] Partitioning $TARGET..."
-wipefs -a "$TARGET"
-sfdisk "$TARGET" &lt;&lt; PART_EOF
-label: dos
-device: $TARGET
-${BOOT_PART} : size=512MiB, type=83, bootable
-${ROOT_PART} : type=83
-PART_EOF
-partprobe "$TARGET"
-sleep 2
-
-# --- Formatting ---
-echo "[2/7] Formatting partitions..."
-mkfs.ext4 -L boot "$BOOT_PART"
-mkfs.ext4 -L root "$ROOT_PART"
-
-# --- Mounting ---
-echo "[3/7] Mounting target filesystems..."
-MROOT=/mnt/lfs-install
-MBOOT=/mnt/lfs-install/boot
-mkdir -pv "$MROOT"
-mount "$ROOT_PART" "$MROOT"
-mkdir -pv "$MBOOT"
-mount "$BOOT_PART" "$MBOOT"
-
-# --- Copying ---
-echo "[4/7] Copying root filesystem..."
-rsync -aAX \
-    --exclude=/proc --exclude=/sys \
-    --exclude=/dev  --exclude=/tmp \
-    "$LFS_ROOT/" "$MROOT/"
-
-mkdir -pv "$MROOT"/{proc,sys,dev,tmp}
-chmod 1777 "$MROOT/tmp"
-
-# --- Writing /etc/fstab ---
-echo "[5/7] Writing /etc/fstab..."
-BOOT_UUID=$(blkid -s UUID -o value "$BOOT_PART")
-ROOT_UUID=$(blkid -s UUID -o value "$ROOT_PART")
-
-cat &gt; "$MROOT/etc/fstab" &lt;&lt; FSTAB_EOF
-# /etc/fstab — generated by LFS-Lite installer
-UUID=${ROOT_UUID}  /       ext4  defaults  0  1
-UUID=${BOOT_UUID}  /boot   ext4  defaults  0  2
-proc     /proc     proc    nosuid,noexec,nodev  0  0
-sysfs    /sys      sysfs   nosuid,noexec,nodev  0  0
-devtmpfs /dev      devtmpfs mode=0755,nosuid    0  0
-devpts   /dev/pts  devpts  gid=5,mode=620       0  0
-tmpfs    /tmp      tmpfs   mode=1777            0  0
-FSTAB_EOF
-
-# --- Installing GRUB ---
-echo "[6/7] Installing GRUB to $TARGET..."
-grub-install \
-    --target=i386-pc \
-    --boot-directory="$MBOOT" \
-    --recheck \
-    "$TARGET"
-
-# --- Writing grub.cfg ---
-echo "[7/7] Writing GRUB configuration..."
-cat &gt; "$MBOOT/grub/grub.cfg" &lt;&lt; GRUB_EOF
-# LFS-Lite GRUB configuration — generated by installer
+# GRUB configuration
+cat &gt; $LFS/iso-root/boot/grub/grub.cfg &lt;&lt; "EOF"
+# LFS-Lite live ISO — GRUB configuration
 set default=0
 set timeout=5
 
-insmod part_msdos
-insmod ext2
+insmod iso9660
 insmod all_video
 
-menuentry "LFS-Lite Linux 7.1.2" {
-    search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux  /vmlinuz-7.1.2 root=UUID=${ROOT_UUID} rw quiet
-    initrd /initramfs.cpio.gz
+menuentry "LFS-Lite Linux 7.1.2 (Live)" {
+    linux  /boot/vmlinuz-7.1.2 quiet
+    initrd /boot/initramfs.cpio.gz
 }
 
-menuentry "LFS-Lite Linux 7.1.2 (verbose)" {
-    search --no-floppy --fs-uuid --set=root ${BOOT_UUID}
-    linux  /vmlinuz-7.1.2 root=UUID=${ROOT_UUID} rw
-    initrd /initramfs.cpio.gz
+menuentry "LFS-Lite Linux 7.1.2 (Live, verbose)" {
+    linux  /boot/vmlinuz-7.1.2
+    initrd /boot/initramfs.cpio.gz
 }
-GRUB_EOF
+EOF</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            No <code>root=</code> parameter is passed to the kernel. The live
+            initramfs locates and mounts the squashfs itself; it does not
+            depend on the kernel to identify the root device.
+          </p>
+        </div>
 
-# --- Cleanup ---
-echo "Syncing and unmounting..."
-sync
-umount "$MBOOT"
-umount "$MROOT"
-
-echo ""
-echo "====================================="
-echo "  Installation Complete"
-echo "====================================="
-echo ""
-echo "Boot  partition : $BOOT_PART  (UUID: $BOOT_UUID)"
-echo "Root  partition : $ROOT_PART  (UUID: $ROOT_UUID)"
-echo ""
-echo "Remove installation media and reboot from $TARGET."
-INSTALLER_EOF
-
-chmod +x /mnt/lfs-lite/install.sh</kbd></pre>
-
-        <h2 class="sect2"><a id="installer-run" name="installer-run"></a>12.4. Running the Installer</h2>
+        <h2 class="sect2"><a id="iso-initramfs-update" name="iso-initramfs-update"></a>12.5. Updating the initramfs for Live Boot</h2>
         <p>
-          Identify the target disk with <code class="command">lsblk</code>:
+          The initramfs <code class="filename">/sbin/init</code> built in
+          Chapter&nbsp;9 must mount the squashfs from the ISO before calling
+          <code class="command">switch_root</code>. Update it now to add
+          squashfs and loop mount support:
         </p>
-        <pre class="userinput"><kbd class="command">lsblk -d -o NAME,SIZE,MODEL,TYPE | grep disk</kbd></pre>
+        <pre class="userinput"><kbd class="command">cat &gt; $LFS/initramfs/sbin/init &lt;&lt; 'EOF'
+#!/bin/sh
+# LFS-Lite live initramfs init — PID 1
+
+mount -t proc     none /proc
+mount -t sysfs    none /sys
+mount -t devtmpfs none /dev
+
+# Allow kernel time to register the optical drive
+sleep 1
+
+# Find the live medium (CD-ROM or USB)
+for dev in /dev/sr0 /dev/sr1 /dev/sda /dev/sdb /dev/vda; do
+    [ -b "$dev" ] || continue
+    mount -o ro "$dev" /mnt 2>/dev/null && LIVE_DEV="$dev" && break
+done
+
+if [ -z "$LIVE_DEV" ]; then
+    echo "ERROR: Could not find live medium. Dropping to shell."
+    exec sh
+fi
+
+# Mount the squashfs root
+if [ ! -f /mnt/live/filesystem.squashfs ]; then
+    echo "ERROR: filesystem.squashfs not found on $LIVE_DEV. Dropping to shell."
+    exec sh
+fi
+
+mkdir -p /mnt/root
+mount -t squashfs -o loop /mnt/live/filesystem.squashfs /mnt/root
+
+# Switch into the real root
+umount /proc /sys /dev
+exec switch_root /mnt/root /sbin/init
+EOF
+chmod +x $LFS/initramfs/sbin/init</kbd></pre>
         <p>
-          Run the installer, substituting the correct device path:
+          Rebuild the initramfs to pick up the updated init script:
         </p>
-        <pre class="userinput"><kbd class="command">sudo LFS_ROOT=$LFS_ROOT /mnt/lfs-lite/install.sh /dev/sdX</kbd></pre>
+        <pre class="userinput"><kbd class="command">cd $LFS/initramfs
+find . | cpio --create --format=newc | gzip -9 &gt; $LFS/initramfs.cpio.gz
+cp -v $LFS/initramfs.cpio.gz $LFS/iso-root/boot/</kbd></pre>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            The loop mount (<code>mount -t squashfs -o loop</code>) requires
+            <code>CONFIG_BLK_DEV_LOOP=y</code> in the kernel. Verify it is
+            set in your kernel configuration:
+          </p>
+          <pre class="userinput"><kbd class="command">grep BLK_DEV_LOOP $LFS_SOURCES/linux-7.1.2/.config</kbd></pre>
+          <p>
+            If it is absent, add it with
+            <code class="command">scripts/config --enable BLK_DEV_LOOP</code>
+            and recompile the kernel (Chapter&nbsp;7).
+          </p>
+        </div>
+
+        <h2 class="sect2"><a id="iso-build" name="iso-build"></a>12.6. Building the ISO with xorriso</h2>
+        <p>
+          <code class="command">xorriso</code> assembles the ISO staging tree
+          into a hybrid image. The hybrid flag makes the ISO bootable from
+          both optical drives and USB sticks written with
+          <code class="command">dd</code>.
+        </p>
+        <pre class="userinput"><kbd class="command">grub-mkrescue \
+    --output=$LFS/lfs-lite.iso \
+    $LFS/iso-root</kbd></pre>
+        <p>
+          <code class="command">grub-mkrescue</code> is a thin wrapper around
+          <code class="command">xorriso</code> that embeds the correct GRUB
+          El Torito boot record and hybrid MBR automatically. It reads your
+          <code class="filename">boot/grub/grub.cfg</code> from the staging
+          tree.
+        </p>
+        <p>Verify the ISO was created:</p>
+        <pre class="userinput"><kbd class="command">ls -lh $LFS/lfs-lite.iso
+file $LFS/lfs-lite.iso</kbd></pre>
+        <p>
+          The <code class="command">file</code> command should report something
+          similar to:
+        </p>
+        <pre class="userinput"><kbd class="command">lfs-lite.iso: ISO 9660 CD-ROM filesystem data (DOS/MBR boot sector) 'LFS-LITE' …</kbd></pre>
+
+        <h2 class="sect2"><a id="iso-test" name="iso-test"></a>12.7. Testing the ISO in QEMU</h2>
+        <p>
+          Boot the ISO directly in QEMU to verify the full boot chain before
+          writing it to physical media:
+        </p>
+        <pre class="userinput"><kbd class="command"># Graphical boot
+qemu-system-x86_64 \
+    -m 512M \
+    -cdrom $LFS/lfs-lite.iso \
+    -boot d
+
+# Serial console (no display required)
+qemu-system-x86_64 \
+    -m 512M \
+    -cdrom $LFS/lfs-lite.iso \
+    -boot d \
+    -nographic \
+    -append "console=ttyS0"</kbd></pre>
+        <p>
+          You should see the GRUB menu, then kernel boot messages, then the
+          initramfs locating and mounting the squashfs, and finally a bash
+          prompt from the final root filesystem.
+        </p>
+
+        <h2 class="sect2"><a id="iso-write" name="iso-write"></a>12.8. Writing the ISO to Physical Media</h2>
+        <p>
+          To boot LFS-Lite on real hardware, write the ISO to a USB stick or
+          burn it to a DVD. Identify the USB device with
+          <code class="command">lsblk</code>, then:
+        </p>
         <div class="admon warn">
           <h3>Warning</h3>
           <p>
-            Replace <code>/dev/sdX</code> with the actual device path of the
-            target disk. Double-check with <code class="command">lsblk</code>
-            before confirming. The installer will ask you to type
-            <code>yes</code> before any destructive action is taken.
+            The <code class="command">dd</code> command below will overwrite
+            every byte on the target device. Verify the device path carefully
+            with <code class="command">lsblk</code>. Writing to the wrong
+            device will destroy data irreversibly.
           </p>
         </div>
+        <pre class="userinput"><kbd class="command">sudo dd if=$LFS/lfs-lite.iso of=/dev/sdX bs=4M status=progress oflag=sync</kbd></pre>
         <p>
-          When the installer completes, remove any installation media and
-          reboot. The system should boot through GRUB into the LFS-Lite
-          initramfs, then pivot into the final root filesystem and present
-          a bash prompt.
-        </p>
-        <p>
-          Proceed to the <a href="bootprocess.html">Final Boot Process
-          Explanation</a> for a detailed walkthrough of what happens from
-          power-on to login shell.
+          Replace <code>/dev/sdX</code> with the USB device. After
+          <code class="command">dd</code> completes, the stick is bootable.
+          Insert it into the target machine, select it in the BIOS boot menu,
+          and LFS-Lite will boot live.
         </p>
       </div>
     </div>
