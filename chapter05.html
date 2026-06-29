@@ -127,6 +127,7 @@ cd util-linux-2.42</kbd></pre>
     --without-systemdsystemunitdir \
     --without-ncurses \
     --without-tinfo \
+    --disable-nsenter \
     CC="$LFS_TOOLS/musl-gcc" \
     CFLAGS="-O2 -pipe" \
     CPPFLAGS="-I$LFS_ROOT/usr/include" \
@@ -147,6 +148,13 @@ cd util-linux-2.42</kbd></pre>
             <dd><p>util-linux can optionally install systemd unit files. We
             have no systemd; this flag prevents the build system from
             searching for it.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--disable-nsenter</code></em></span></dt>
+            <dd><p>Disables the <code class="command">nsenter</code> namespace-entry
+            tool. util-linux 2.42's <code class="filename">nsenter.c</code>
+            references <code>AT_HANDLE_FID</code> (added in Linux 6.5), but the
+            constant is not reliably visible through the musl-gcc sysroot include
+            path during the util-linux build. nsenter is not needed in a minimal
+            system.</p></dd>
             <dt><span class="term"><em class="parameter"><code>--without-ncurses, --without-tinfo</code></em></span></dt>
             <dd><p>Disables ncurses-dependent features in tools like
             <code class="command">cfdisk</code>. We accept simpler terminal

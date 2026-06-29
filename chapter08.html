@@ -90,6 +90,7 @@ cd grub-2.14</kbd></pre>
     --sysconfdir=/etc \
     --disable-efiemu \
     --disable-werror \
+    --disable-grub-manpages \
     --target=x86_64</kbd></pre>
         <div class="variablelist">
           <p class="title"><strong>The meaning of the configure options:</strong></p>
@@ -101,6 +102,14 @@ cd grub-2.14</kbd></pre>
             <dd><p>GRUB's code may generate warnings with newer compilers.
             This flag prevents warnings from being treated as fatal errors,
             allowing the build to complete.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>--disable-grub-manpages</code></em></span></dt>
+            <dd><p>Skips generation of man pages, which requires
+            <code class="command">help2man</code> to be present on the host.
+            On systems where <code class="command">help2man</code> is absent
+            or intercepted by a cross-dispatch wrapper (such as ENux's
+            <code class="filename">/enux/cross/bin/</code>), the build will
+            fail with exit code 127. Man pages are not needed for a
+            functional bootloader installation.</p></dd>
             <dt><span class="term"><em class="parameter"><code>--target=x86_64</code></em></span></dt>
             <dd><p>Build GRUB for the x86_64 platform.</p></dd>
           </dl>
@@ -109,78 +118,89 @@ cd grub-2.14</kbd></pre>
         <h2 class="sect2"><a id="grub-compile" name="grub-compile"></a>8.4. Compiling GRUB</h2>
         <pre class="userinput"><kbd class="command">make -j${JOBS}</kbd></pre>
 
-        <h2 class="sect2"><a id="grub-install" name="grub-install"></a>8.5. Installing GRUB to the Host</h2>
+        <h2 class="sect2"><a id="grub-install" name="grub-install"></a>8.5. Installing GRUB</h2>
         <p>
-          Install GRUB to the host system. It will be invoked by the
-          installer script (Chapter&nbsp;12) to write the bootloader to the
-          target disk's MBR.
+          GRUB must be installed in two places:
         </p>
-        <pre class="userinput"><kbd class="command">sudo make install</kbd></pre>
-        <p>Verify:</p>
+        <ul>
+          <li><strong>The host system</strong> — so the installer script in
+          Chapter&nbsp;12 can call <code class="command">grub-install</code>
+          to write the bootloader to the target disk's MBR.</li>
+          <li><strong>The LFS-Lite root</strong> — so the booted system has
+          GRUB tools available for maintenance (re-running
+          <code class="command">grub-install</code> after a disk change,
+          updating <code class="filename">grub.cfg</code>, etc.).</li>
+        </ul>
+        <pre class="userinput"><kbd class="command">sudo make install
+make DESTDIR=$LFS_ROOT install</kbd></pre>
+        <p>Verify the host installation:</p>
         <pre class="userinput"><kbd class="command">grub-install --version
 grub-mkconfig --version</kbd></pre>
+        <p>Verify the LFS-Lite root installation:</p>
+        <pre class="userinput"><kbd class="command">ls $LFS_ROOT/usr/sbin/grub-install
+ls $LFS_ROOT/usr/bin/grub-mkconfig</kbd></pre>
 
-        <h2 class="sect2"><a id="grub-cfg" name="grub-cfg"></a>8.6. GRUB Configuration File</h2>
+        <h2 class="sect2"><a id="grub-cfg" name="grub-cfg"></a>8.6. GRUB Configuration File for the Live ISO</h2>
         <p>
-          Create the template <code class="filename">grub.cfg</code> that will
-          be placed in the target system's
-          <code class="filename">/boot/grub/</code>. The installer script
-          in Chapter&nbsp;12 will adapt this template with the correct UUIDs
-          for the target disk's partitions.
+          Create the <code class="filename">grub.cfg</code> for the
+          <strong>live ISO</strong>. This file is what GRUB reads when booting
+          from the ISO image. It must load the kernel and initramfs from the
+          optical medium — it does <em>not</em> specify a root disk device,
+          because on a live ISO there is no installed root partition. The
+          initramfs <code class="filename">/init</code> script (Chapter&nbsp;9)
+          is responsible for mounting the live medium and calling
+          <code class="command">switch_root</code>.
         </p>
+        <div class="admon note">
+          <h3>Note</h3>
+          <p>
+            This is not the same <code class="filename">grub.cfg</code> that
+            the installer writes to a hard disk. The installer script in
+            Chapter&nbsp;12 generates a separate configuration with
+            UUID-based root= parameters for the installed system. The file
+            created here is only for booting the ISO.
+          </p>
+        </div>
         <pre class="userinput"><kbd class="command">mkdir -pv $LFS_ROOT/boot/grub
 
 cat &gt; $LFS_ROOT/boot/grub/grub.cfg &lt;&lt; "EOF"
-# LFS-Lite GRUB configuration
+# LFS-Lite live ISO GRUB configuration
 set default=0
 set timeout=5
 
-insmod part_msdos
-insmod ext2
+insmod iso9660
 insmod all_video
 
-menuentry "LFS-Lite Linux 7.1.2" {
-    set root=(hd0,1)
-    linux  /vmlinuz-7.1.2 root=/dev/sda2 rw quiet
+menuentry "LFS-Lite Linux 7.1.2 (Live)" {
+    linux  /vmlinuz-7.1.2 quiet
     initrd /initramfs.cpio.gz
 }
 
-menuentry "LFS-Lite Linux 7.1.2 (verbose)" {
-    set root=(hd0,1)
-    linux  /vmlinuz-7.1.2 root=/dev/sda2 rw
+menuentry "LFS-Lite Linux 7.1.2 (Live, verbose)" {
+    linux  /vmlinuz-7.1.2
     initrd /initramfs.cpio.gz
 }
 EOF</kbd></pre>
         <div class="variablelist">
           <p class="title"><strong>Key grub.cfg directives:</strong></p>
           <dl class="variablelist">
-            <dt><span class="term"><em class="parameter"><code>set root=(hd0,1)</code></em></span></dt>
-            <dd><p>GRUB disk numbering starts at 0; partition numbering
-            starts at 1. <code>(hd0,1)</code> is the first partition of the
-            first disk — the <code class="filename">/boot</code> partition.
-            The installer replaces this with a UUID-based
-            <code>search</code> command for robustness.</p></dd>
-            <dt><span class="term"><em class="parameter"><code>root=/dev/sda2</code></em></span></dt>
-            <dd><p>Tells the kernel where to find the real root filesystem.
-            The installer replaces the device path with
-            <code>root=UUID=...</code> so the system boots correctly
-            regardless of disk ordering.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>insmod iso9660</code></em></span></dt>
+            <dd><p>Loads the ISO 9660 filesystem module so GRUB can read
+            files from the optical medium. On an ISO, there is no
+            <code>part_msdos</code> or <code>ext2</code> involved at the
+            GRUB stage.</p></dd>
+            <dt><span class="term"><em class="parameter"><code>linux /vmlinuz-7.1.2 quiet</code></em></span></dt>
+            <dd><p>Loads the kernel from the ISO's root. No
+            <code>root=</code> device is passed here — the live initramfs
+            is self-contained and locates the root medium itself. Passing
+            a hardcoded device path such as <code>root=/dev/sda2</code>
+            would be incorrect: the ISO has no such partition, and the
+            device name would be wrong on most machines anyway.</p></dd>
             <dt><span class="term"><em class="parameter"><code>initrd /initramfs.cpio.gz</code></em></span></dt>
-            <dd><p>The initramfs archive. The kernel loads this into memory
-            and extracts it before executing the first userspace
-            process.</p></dd>
+            <dd><p>The initramfs archive. The kernel extracts this into
+            a tmpfs and executes <code class="filename">/sbin/init</code>
+            inside it as PID&nbsp;1.</p></dd>
           </dl>
-        </div>
-        <div class="admon note">
-          <h3>Note</h3>
-          <p>
-            Paths in <code class="filename">grub.cfg</code> are relative to
-            the GRUB root device, not to the running system root. When
-            <code class="filename">/boot</code> is a separate partition
-            (as the installer creates), files must be referenced as
-            <code>/vmlinuz-7.1.2</code> — not
-            <code>/boot/vmlinuz-7.1.2</code>.
-          </p>
         </div>
       </div>
     </div>

@@ -103,24 +103,41 @@ $LFS_TOOLS/musl-gcc --version</kbd></pre></li>
           may not start, but the system panics with:
         </p>
         <pre class="userinput"><kbd class="command">Kernel panic - not syncing: VFS: Unable to mount root fs on unknown-block(0,0)</kbd></pre>
+        <p>
+          On a live ISO, this panic means the kernel extracted the initramfs
+          but the initramfs <code class="filename">/sbin/init</code> script
+          failed before or during <code class="command">switch_root</code>.
+          There is no <code>root=</code> UUID to check — the live ISO grub.cfg
+          does not pass one.
+        </p>
         <p><strong>Causes and resolutions:</strong></p>
         <ul>
-          <li><strong>Wrong <code>root=</code> parameter:</strong> The UUID
-          or device path in <code class="filename">grub.cfg</code> does not
-          match the actual partition. Boot from a live system and run:
-          <pre class="userinput"><kbd class="command">blkid /dev/sda2</kbd></pre>
-          Compare the UUID with the one in <code class="filename">grub.cfg</code>.</li>
+          <li><strong>initramfs /sbin/init failed silently:</strong> Add
+          <code>set -x</code> at the top of the initramfs
+          <code class="filename">/sbin/init</code> script, rebuild the
+          initramfs (Chapter&nbsp;9), and reboot. Shell trace output will
+          show exactly which command failed.</li>
+          <li><strong>The live root was not found:</strong> The initramfs
+          init script must mount the live medium (e.g.
+          <code class="filename">/dev/sr0</code> for a CD-ROM, or a
+          squashfs loop mount) before calling
+          <code class="command">switch_root</code>. Verify that the mount
+          succeeds inside the initramfs by dropping to a shell:
+          replace the <code>exec switch_root</code> line temporarily with
+          <code>exec sh</code> and inspect
+          <code class="filename">/mnt/root</code>.</li>
           <li><strong>ext4 not in kernel:</strong> Verify
           <code>CONFIG_EXT4_FS=y</code> was set before kernel compilation.
           Recompile if necessary.</li>
-          <li><strong>Disk driver missing:</strong> For QEMU,
-          <code>CONFIG_VIRTIO_BLK=y</code> is required. For bare metal SATA,
-          <code>CONFIG_ATA=y</code> and <code>CONFIG_ATA_PIIX=y</code>.
+          <li><strong>ISO 9660 driver missing:</strong> When booting from
+          optical media, <code>CONFIG_ISO9660_FS=y</code> (or built as a
+          module) must be present. Verify with:
+          <pre class="userinput"><kbd class="command">grep ISO9660 $LFS_SOURCES/linux-7.1.2/.config</kbd></pre></li>
+          <li><strong>Optical or virtio driver missing:</strong> For QEMU
+          with <code>-cdrom</code>, <code>CONFIG_BLK_DEV_SR=y</code> and
+          <code>CONFIG_ATA_PIIX=y</code> are required. For
+          <code>-drive if=virtio</code>, <code>CONFIG_VIRTIO_BLK=y</code>.
           Recompile the kernel with the correct options.</li>
-          <li><strong>initramfs timeout too short:</strong> The disk driver
-          may initialise asynchronously. Increase the polling loop count in
-          the initramfs <code class="filename">/sbin/init</code> from
-          20 iterations to 40.</li>
         </ul>
 
         <h3>switch_root: failed to execute /sbin/init</h3>

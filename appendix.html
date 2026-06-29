@@ -193,39 +193,50 @@ export LFS_LOG=$LFS/logs/build-$(date +%Y%m%d-%H%M).log</kbd></pre>
 
         <h2 class="sect2">Appendix G — QEMU Quick-Start</h2>
         <p>
-          To boot LFS-Lite in QEMU without installing to physical hardware,
-          create a raw disk image and run the installer against it:
+          LFS-Lite ships as a live ISO. Boot it directly in QEMU without
+          any disk image or installer:
         </p>
-        <pre class="userinput"><kbd class="command"># Create a 4 GB raw disk image
-qemu-img create -f raw /tmp/lfslite.img 4G
-
-# Attach it as a loop device so the installer can partition it
-sudo losetup -fP /tmp/lfslite.img
-sudo losetup -l   # find the loop device name, e.g. /dev/loop0
-
-# Run the installer against the loop device
-sudo LFS_ROOT=$LFS_ROOT /mnt/lfs-lite/install.sh /dev/loop0
-
-# Detach the loop device
-sudo losetup -d /dev/loop0
-
-# Boot the image in QEMU
+        <pre class="userinput"><kbd class="command"># Boot the live ISO in QEMU (graphical window)
 qemu-system-x86_64 \
     -m 512M \
-    -drive file=/tmp/lfslite.img,format=raw,if=virtio \
+    -cdrom ~/ENux-6.0/enux-lfs-lite.iso \
+    -boot d
+
+# Boot with serial console only (no GUI window needed)
+qemu-system-x86_64 \
+    -m 512M \
+    -cdrom ~/ENux-6.0/enux-lfs-lite.iso \
+    -boot d \
     -nographic \
-    -append "console=ttyS0 root=/dev/vda2 rw" \
-    -kernel $LFS_ROOT/boot/vmlinuz-7.1.2 \
-    -initrd $LFS_ROOT/boot/initramfs.cpio.gz</kbd></pre>
+    -append "console=ttyS0"</kbd></pre>
+        <p>
+          To test the <strong>installer</strong> (Chapter&nbsp;12) inside QEMU,
+          create a target disk image and attach it alongside the ISO:
+        </p>
+        <pre class="userinput"><kbd class="command"># Create a 4 GB raw disk image as the install target
+qemu-img create -f raw /tmp/lfslite-disk.img 4G
+
+# Boot the live ISO with the disk image attached
+# The ISO is /dev/sr0; the disk image becomes /dev/sda (the install target)
+qemu-system-x86_64 \
+    -m 512M \
+    -cdrom ~/ENux-6.0/enux-lfs-lite.iso \
+    -drive file=/tmp/lfslite-disk.img,format=raw,if=virtio \
+    -boot d \
+    -nographic \
+    -append "console=ttyS0"
+
+# Inside the live system, run the installer:
+#   sudo /mnt/lfs-lite/install.sh /dev/vda</kbd></pre>
         <div class="admon note">
           <h3>Note</h3>
           <p>
-            When using QEMU with <code>-drive if=virtio</code>, the disk
-            appears as <code>/dev/vda</code>, not <code>/dev/sda</code>.
-            Adjust <code>root=</code> in the QEMU <code>-append</code>
-            line and in <code class="filename">grub.cfg</code> accordingly,
-            or use the UUID-based form (<code>root=UUID=...</code>) which
-            is device-name agnostic.
+            With <code>-drive if=virtio</code>, the disk image appears as
+            <code>/dev/vda</code> inside the guest, not <code>/dev/sda</code>.
+            Pass <code>/dev/vda</code> to the installer. The installed
+            system's <code class="filename">grub.cfg</code> uses
+            <code>root=UUID=...</code> so the device name does not matter
+            after installation.
           </p>
         </div>
 

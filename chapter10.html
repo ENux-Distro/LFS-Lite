@@ -171,15 +171,19 @@ chmod +x $LFS_ROOT/sbin/init</kbd></pre>
         <h2 class="sect2"><a id="init-fstab" name="init-fstab"></a>10.3. Creating /etc/fstab</h2>
         <p>
           The filesystem table is read by <code class="command">mount -a</code>
-          in the init script. The installer will generate a system-specific
-          version with correct UUIDs, but this template is used as a
-          placeholder and as the version shipped inside the rootfs:
+          in the init script. The rootfs fstab shipped inside the live ISO
+          must <em>not</em> reference disk partitions such as
+          <code class="filename">/dev/sda2</code> — on a live ISO, the root is
+          a tmpfs populated from the squashfs in memory, not a partition on any
+          fixed disk. Disk partition entries belong in the fstab that the
+          installer (Chapter&nbsp;12) writes to the target system after
+          installation. The live rootfs fstab only mounts virtual filesystems:
         </p>
         <pre class="userinput"><kbd class="command">cat &gt; $LFS_ROOT/etc/fstab &lt;&lt; "EOF"
-# /etc/fstab — LFS-Lite
+# /etc/fstab — LFS-Lite (live)
+# Disk partitions are NOT listed here. The installer writes
+# a system-specific fstab with correct UUIDs after installation.
 # &lt;device&gt;    &lt;mountpoint&gt;  &lt;type&gt;     &lt;options&gt;              &lt;dump&gt; &lt;pass&gt;
-/dev/sda2     /             ext4       defaults               0      1
-/dev/sda1     /boot         ext4       defaults               0      2
 proc          /proc         proc       nosuid,noexec,nodev    0      0
 sysfs         /sys          sysfs      nosuid,noexec,nodev    0      0
 devtmpfs      /dev          devtmpfs   mode=0755,nosuid       0      0
