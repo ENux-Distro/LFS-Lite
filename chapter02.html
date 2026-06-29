@@ -150,7 +150,7 @@ exec gcc \\
     -isystem $LFS_ROOT/usr/include \\
     -L$LFS_ROOT/usr/lib \\
     -L$LFS_ROOT/lib64 \\
-    -Wl,-dynamic-linker,$LFS_ROOT/lib64/ld-musl-x86_64.so.1 \\
+    -Wl,-dynamic-linker,/lib64/ld-musl-x86_64.so.1 \\
     "\$@"
 EOF
 
@@ -158,10 +158,17 @@ chmod +x $LFS_TOOLS/musl-gcc</kbd></pre>
         <div class="admon note">
           <h3>Note</h3>
           <p>
-            This wrapper embeds absolute paths to the build-time
-            <code>$LFS_ROOT</code>. It is a <em>build-time</em> tool only,
-            used to compile the remaining packages. It does not ship in the
-            final system.
+            The <code>-Wl,-dynamic-linker</code> path is
+            <code class="filename">/lib64/ld-musl-x86_64.so.1</code> — a
+            target-system path, not a host path prefixed with
+            <code>$LFS_ROOT</code>. This value is baked into the ELF
+            interpreter field of every binary the wrapper compiles. Inside
+            the chroot (and in the final live system), the dynamic linker
+            lives at <code class="filename">/lib64/ld-musl-x86_64.so.1</code>,
+            so this must reflect the path as seen by the running system, not
+            the path as seen by the build host. Using
+            <code>$LFS_ROOT/lib64/...</code> here would produce binaries that
+            cannot execute inside the chroot.
           </p>
         </div>
 

@@ -83,7 +83,7 @@ source ~/.bashrc</kbd></pre>
         </p>
         <pre class="userinput"><kbd class="command">mkdir -pv $LFS/{sources,rootfs,tools,build,logs}
 
-mkdir -pv $LFS_ROOT/{bin,boot,dev,etc,home,lib,lib64,proc,root,run,sbin,sys,tmp}
+mkdir -pv $LFS_ROOT/{boot,dev,etc,home,lib64,proc,root,run,sys,tmp}
 mkdir -pv $LFS_ROOT/usr/{bin,lib,sbin,share,include}
 mkdir -pv $LFS_ROOT/var/{log,run,tmp}
 
@@ -138,17 +138,28 @@ ls $LFS_SOURCES/busybox/Makefile</kbd></pre>
           <code class="filename">/sbin</code> into their
           <code class="filename">/usr</code> counterparts:
         </p>
-        <pre class="userinput"><kbd class="command">ln -sfv usr/bin  $LFS_ROOT/bin
-ln -sfv usr/lib  $LFS_ROOT/lib
-ln -sfv usr/sbin $LFS_ROOT/sbin</kbd></pre>
+        <pre class="userinput"><kbd class="command">ln -sv usr/bin  $LFS_ROOT/bin
+ln -sv usr/lib  $LFS_ROOT/lib
+ln -sv usr/sbin $LFS_ROOT/sbin</kbd></pre>
+        <p>Verify the symlinks are correct:</p>
+        <pre class="userinput"><kbd class="command">ls -la $LFS_ROOT/bin $LFS_ROOT/lib $LFS_ROOT/sbin</kbd></pre>
+        <p>
+          Each must show a symlink arrow, for example
+          <code>bin -&gt; usr/bin</code>. If any shows as a directory, the
+          symlink was not created — remove it with
+          <code class="command">rm -rf $LFS_ROOT/bin</code> and re-run the
+          <code class="command">ln</code> command.
+        </p>
         <div class="admon note">
           <h3>Note</h3>
           <p>
-            On x86_64 systems the dynamic linker is placed at
-            <code class="filename">/lib64/ld-musl-x86_64.so.1</code>.
-            The <code class="filename">lib64</code> directory was created
-            above and will be populated when musl is installed in
-            <a href="chapter02.html">Chapter&nbsp;2</a>.
+            <code class="filename">bin</code>, <code class="filename">lib</code>,
+            and <code class="filename">sbin</code> must not exist as directories
+            before these commands run. This is why they were deliberately omitted
+            from the <code class="command">mkdir</code> in
+            <a href="#env-skeleton">Section&nbsp;1.2</a>. If you pass
+            <code>ln</code> a target that already exists as a directory, it
+            places the symlink inside it rather than replacing it.
           </p>
         </div>
 

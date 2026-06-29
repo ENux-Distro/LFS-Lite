@@ -132,6 +132,12 @@ cd grub-2.14</kbd></pre>
         </ul>
         <pre class="userinput"><kbd class="command">sudo make install
 make DESTDIR=$LFS_ROOT install</kbd></pre>
+        <p>
+          <code class="command">grub-mkconfig</code> is not installed by
+          <code class="command">make install</code> as part of the standard
+          GRUB build. Copy it manually from the host installation:
+        </p>
+        <pre class="userinput"><kbd class="command">sudo cp -v /usr/bin/grub-mkconfig $LFS_ROOT/usr/bin/grub-mkconfig</kbd></pre>
         <p>Verify the host installation:</p>
         <pre class="userinput"><kbd class="command">grub-install --version
 grub-mkconfig --version</kbd></pre>
